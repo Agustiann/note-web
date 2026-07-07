@@ -18,24 +18,8 @@
 
             <form @submit.prevent="login">
                 <div class="form-group">
-                    <label>Role</label>
-                    <select v-model="form.role">
-                        <option value="">
-                            Pilih Role
-                        </option>
-                        <option value="admin">
-                            Admin
-                        </option>
-
-                        <option value="user">
-                            User
-                        </option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Username</label>
-                    <input v-model="form.username" type="text" placeholder="Masukkan Username">
+                    <label>Email</label>
+                    <input v-model="form.email" type="text" placeholder="Masukkan email">
                 </div>
 
                 <div class="form-group">
@@ -61,7 +45,7 @@
 </template>
 
 <script setup>
-import '~/assets/css/login.css'
+import '~/assets/css/login.scss'
 import { Eye, EyeClosed } from 'lucide-vue-next'
 
 const showPassword = ref(false)
@@ -69,16 +53,14 @@ const showPassword = ref(false)
 const errorMessage = ref('')
 
 const form = ref({
-    role: '',
-    username: '',
+    email: '',
     password: ''
 })
 
 function login() {
 
     if (
-        !form.value.role ||
-        !form.value.username ||
+        !form.value.email ||
         !form.value.password
     ) {
         errorMessage.value = 'Semua field wajib diisi.'

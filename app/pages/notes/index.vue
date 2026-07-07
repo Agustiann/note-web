@@ -14,17 +14,9 @@
         </div>
       </header>
 
-      <section class="dashboard__stats">
-        <div v-for="stat in stats" :key="stat.label" class="stat-card">
-          <span class="stat-card__label">{{ stat.label }}</span>
-          <span class="stat-card__value">{{ stat.value }}</span>
-        </div>
-      </section>
-
       <section class="dashboard__group">
         <div class="dashboard__group-header">
-          <h2>Catatan terbaru</h2>
-          <span class="dashboard__group-count">{{ recent.length }}</span>
+          <h2>Semua Catatan</h2>
         </div>
         <div class="dashboard__group-list">
           <NoteCard v-for="note in recent" :key="note.id" :note="note" />
@@ -99,16 +91,4 @@ const unfinished = computed(() =>
   notes.filter((n) => n.checklists.some((c) => !c.is_completed))
 )
 const recent = computed(() => [...notes].slice(0, 3))
-
-const stats = computed(() => {
-  const totalChecklist = notes.reduce((sum, n) => sum + n.checklists.length, 0)
-  const doneChecklist = notes.reduce(
-    (sum, n) => sum + n.checklists.filter((c) => c.is_completed).length,
-    0
-  )
-  return [
-    { label: 'Total catatan', value: notes.length },
-    { label: 'Folder aktif', value: Object.keys(folderPalette).length },
-  ]
-})
 </script>
