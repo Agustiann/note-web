@@ -1,0 +1,196 @@
+:root {
+    --primary: #357ABD;
+    --secondary: #2A5197;
+    --light: #ffffff;
+    --text-primary: #2d3748;
+    --text-secondary: #9ca3af;
+    --li-clor: #8A94A6;
+    --border: #CCCCCC;
+    --main-body: #f5f6fa;
+    --text-breadcumb: #5E5873;
+    --main: #d8ecff;
+    --error: #e3342f;
+}
+
+* {
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+body {
+    margin: 0;
+    height: 100vh;
+    background: var(--main-body);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.login-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.login-card {
+    background: var(--light);
+    width: 450px;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.logo img {
+    width: 80px;
+}
+
+h2 {
+    font-size: 22px;
+    margin-top: 5px;
+    margin-bottom: 0;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    font-size: 14px;
+    color: var(--text-breadcumb);
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.form-group {
+    margin-bottom: 5px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.form-group label {
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: var(--text-breadcumb);
+    font-weight: 600;
+    text-align: left;
+}
+
+.form-group input,
+.form-group select {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: 2px solid var(--primary);
+    border-color: var(--primary);
+}
+
+.form-group select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg fill='%235E5873' height='16' viewBox='0 0 24 24' width='16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    cursor: pointer;
+}
+
+.form-group select {
+    color: var(--text-secondary);
+}
+
+.form-group select:not([value=""]),
+.form-group select:valid {
+    color: var(--text-breadcumb);
+}
+
+
+.btn-login {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary);
+    border: none;
+    border-radius: 6px;
+    color: var(--light);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+    margin-top: 5px;
+}
+
+.btn-login:hover {
+    opacity: 0.9;
+}
+
+.form-group.error input,
+.form-group.error select {
+    border-color: var(--error);
+    outline: 2px solid var(--error);
+}
+
+.error-text {
+    font-size: 11px;
+    color: var(--error);
+    margin-top: 4px;
+    min-height: 14px;
+    visibility: hidden;
+    text-align: left;
+}
+
+.alert-error {
+    color: var(--error);
+    font-size: 14px;
+    text-align: center;
+}
+
+.password-input{
+    position: relative;
+}
+
+.password-input input{
+    width:100%;
+    padding:12px 45px 12px 12px;
+}
+
+.toggle-password{
+    position:absolute;
+    top:50%;
+    right:12px;
+    transform:translateY(-50%);
+    border:none;
+    background:none;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--text-secondary);
+}
+
+.toggle-password:hover{
+    color:var(--primary);
+}
+
+@media (max-width: 480px) {
+    .login-card {
+        width: 90%;
+        padding: 30px 20px;
+    }
+
+    h2 {
+        font-size: 20px;
+    }
+
+    .subtitle {
+        font-size: 13px;
+    }
+
+    #__nuxt {
+        width: 90%;
+    }
+}
