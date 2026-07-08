@@ -27,7 +27,9 @@
           <span class="dashboard__group-count">{{ recent.length }}</span>
         </div>
         <div class="dashboard__group-list">
-          <NoteCard v-for="note in recent" :key="note.id" :note="note" />
+          <NuxtLink v-for="note in recent" :key="note.id" to="/notes/update" class="dashboard__note-link">
+            <NoteCard :note="note" />
+          </NuxtLink>
         </div>
       </section>
     </div>

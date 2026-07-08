@@ -66,7 +66,7 @@
                         <Transition name="fade">
                             <ul v-if="openedFolders.includes(folder.id)" class="sidebar__notes">
                                 <li v-for="note in folder.notes" :key="note.id">
-                                    <NuxtLink :to="`/notes/${note.id}`" class="sidebar__note"
+                                    <NuxtLink to="/notes/update" class="sidebar__note"
                                         active-class="sidebar__note--active">
                                         <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
                                             <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
