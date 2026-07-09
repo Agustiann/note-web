@@ -44,7 +44,10 @@
                 <ul class="sidebar__folders">
 
                     <li v-for="folder in localFolders" :key="folder.id" class="sidebar__folder-group">
-                        <div class="sidebar__folder-row">
+                        <div class="sidebar__folder-row"
+                            :class="{ 'sidebar__folder-row--drop-target': dragOverFolderId === folder.id }"
+                            @dragover.prevent="handleFolderDragOver(folder.id)"
+                            @dragleave="handleFolderDragLeave(folder.id)" @drop.prevent="handleFolderDrop(folder.id)">
                             <button class="sidebar__folder" @click="toggleFolder(folder.id)">
                                 <svg class="sidebar__folder-icon" viewBox="0 0 24 24" fill="none">
                                     <path
@@ -98,7 +101,10 @@
 
                         <Transition name="fade">
                             <ul v-if="openedFolders.includes(folder.id)" class="sidebar__notes">
-                                <li v-for="note in folder.notes" :key="note.id">
+                                <li v-for="note in folder.notes" :key="note.id" class="sidebar__note-item"
+                                    :class="{ 'sidebar__note-item--dragging': draggedNote?.noteId === note.id }"
+                                    draggable="true" @dragstart="handleNoteDragStart(note, folder.id, $event)"
+                                    @dragend="handleNoteDragEnd">
                                     <NuxtLink to="/notes/update" class="sidebar__note"
                                         active-class="sidebar__note--active">
                                         <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
@@ -185,6 +191,8 @@ const props = defineProps({
         }),
     },
 })
+
+const emit = defineEmits(['note-moved'])
 
 const localFolders = ref(
     props.folders.map(folder => ({
@@ -328,6 +336,73 @@ const deleteFolder = (id) => {
 
     const openedIndex = openedFolders.value.indexOf(id)
     if (openedIndex > -1) openedFolders.value.splice(openedIndex, 1)
+}
+
+const draggedNote = ref(null)
+const dragOverFolderId = ref(null)
+
+const handleNoteDragStart = (note, sourceFolderId, event) => {
+    draggedNote.value = { noteId: note.id, sourceFolderId }
+
+    if (event?.dataTransfer) {
+        event.dataTransfer.setData('text/plain', note.title)
+
+        const dragPreview = document.createElement('div')
+        dragPreview.textContent = note.title
+        
+        document.body.appendChild(dragPreview)
+
+        event.dataTransfer.setDragImage(dragPreview, 10, 10)
+
+        requestAnimationFrame(() => {
+            document.body.removeChild(dragPreview)
+        })
+    }
+}
+
+const handleNoteDragEnd = () => {
+    draggedNote.value = null
+    dragOverFolderId.value = null
+}
+
+const handleFolderDragOver = (folderId) => {
+    if (!draggedNote.value) return
+    if (draggedNote.value.sourceFolderId === folderId) return
+    dragOverFolderId.value = folderId
+}
+
+const handleFolderDragLeave = (folderId) => {
+    if (dragOverFolderId.value === folderId) {
+        dragOverFolderId.value = null
+    }
+}
+
+const handleFolderDrop = (targetFolderId) => {
+    dragOverFolderId.value = null
+
+    if (!draggedNote.value) return
+
+    const { noteId, sourceFolderId } = draggedNote.value
+    draggedNote.value = null
+
+    if (sourceFolderId === targetFolderId) return
+
+    const sourceFolder = localFolders.value.find(f => f.id === sourceFolderId)
+    const targetFolder = localFolders.value.find(f => f.id === targetFolderId)
+
+    if (!sourceFolder || !targetFolder) return
+
+    const noteIndex = sourceFolder.notes.findIndex(n => n.id === noteId)
+    if (noteIndex === -1) return
+
+    const [movedNote] = sourceFolder.notes.splice(noteIndex, 1)
+    targetFolder.notes.push(movedNote)
+
+    if (!openedFolders.value.includes(targetFolderId)) {
+        openedFolders.value.push(targetFolderId)
+    }
+
+    emit('note-moved', { noteId, fromFolderId: sourceFolderId, toFolderId: targetFolderId })
 }
 
 const totalNotes = computed(() => {
