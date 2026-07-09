@@ -17,8 +17,8 @@
 
                 <div class="update-note__meta">
                     <div class="update-note__field">
-                        <label>Folder</label>
-                        <select v-model="form.folderId">
+                        <label for="note-folder">Folder</label>
+                        <select id="note-folder" v-model="form.folderId">
                             <option v-for="folder in folders" :key="folder.id" :value="folder.id">
                                 {{ folder.name }}
                             </option>
@@ -27,24 +27,72 @@
                 </div>
 
                 <input v-model="form.title" class="update-note__title-input" placeholder="Judul...">
-
-                <div class="update-note__body-header">
-                    <label>Isi Catatan</label>
-
-                    <div class="update-note__body-actions">
-                        <button type="button" class="update-note__checklist-add" @click="addChecklistItem">
-                            + Tambah checklist
-                        </button>
-                        <button type="button" class="update-note__image-add" @click="triggerImageUpload">
+                <div class="update-note__section">
+                    <div class="update-note__section-header">
+                        <label>Lampiran Gambar ({{ form.images.length }}/{{ MAX_IMAGES }})</label>
+                        <button type="button" class="update-note__section-add" :disabled="!canAddImage"
+                            @click="triggerImageUpload">
                             + Tambah gambar
                         </button>
-                        <input ref="imageInputRef" type="file" accept="image/*" class="update-note__image-input"
-                            @change="handleImageSelected">
+                        <input ref="imageInputRef" type="file" accept="image/*" multiple
+                            class="update-note__image-input" @change="handleImageSelected">
+                    </div>
+
+                    <p class="update-note__hint">
+                        Maksimal {{ MAX_IMAGES }} gambar, masing-masing maksimal {{ MAX_IMAGE_SIZE_LABEL }}.
+                    </p>
+
+                    <span v-if="imageError" class="update-note__error">
+                        {{ imageError }}
+                    </span>
+
+                    <div v-if="form.images.length" class="update-note__attachment-grid">
+                        <div v-for="image in form.images" :key="image.id" class="update-note__attachment-item">
+                            <img :src="image.src" :alt="image.name" class="update-note__attachment-preview">
+                            <div class="update-note__attachment-meta">
+                                <span class="update-note__attachment-name">{{ image.name }}</span>
+                                <span class="update-note__attachment-size">{{ formatSize(image.size) }}</span>
+                            </div>
+                            <button type="button" class="update-note__attachment-remove" aria-label="Hapus gambar"
+                                @click="removeImage(image.id)">
+                                ×
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div ref="editorRef" class="update-note__editor" contenteditable="true" @input="handleEditorInput"
-                    @keydown="handleEditorKeydown" @click="handleEditorClick" />
+                <div class="update-note__section">
+                    <div class="update-note__section-header">
+                        <label for="note-content">Isi Catatan</label>
+                    </div>
+                    <textarea id="note-content" v-model="form.content" class="update-note__textarea" rows="6"
+                        placeholder="Tulis catatan di sini..." />
+                </div>
+
+                <div class="update-note__section">
+                    <div class="update-note__section-header">
+                        <label>Checklist</label>
+                        <button type="button" class="update-note__section-add" @click="addChecklistItem">
+                            + Tambah checklist
+                        </button>
+                    </div>
+
+                    <ul v-if="form.checklist.length" class="update-note__checklist">
+                        <li v-for="item in form.checklist" :key="item.id" class="update-note__checklist-item"
+                            :class="{ 'update-note__checklist-item--done': item.isCompleted }">
+                            <input v-model="item.isCompleted" type="checkbox" class="update-note__checklist-checkbox">
+                            <input v-model="item.content" type="text" class="update-note__checklist-input"
+                                placeholder="Item checklist..." @keyup.enter="addChecklistItem">
+                            <button type="button" class="update-note__checklist-remove" aria-label="Hapus item"
+                                @click="removeChecklistItem(item.id)">
+                                ×
+                            </button>
+                        </li>
+                    </ul>
+                    <p v-else class="update-note__empty-hint">
+                        Belum ada checklist.
+                    </p>
+                </div>
 
                 <div class="update-note__footer">
                     <span v-if="saveError" class="update-note__error">
@@ -60,6 +108,10 @@
 
 <script setup>
 const router = useRouter()
+
+const MAX_IMAGES = 3
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024
+const MAX_IMAGE_SIZE_LABEL = '2MB'
 
 const folders = ref([
     { id: 1, name: 'Kerja' },
@@ -77,240 +129,85 @@ const form = reactive({
 
 const isSaving = ref(false)
 const saveError = ref('')
-const editorRef = ref(null)
+const imageError = ref('')
+const imageInputRef = ref(null)
 
-onMounted(async () => {
-    await nextTick()
-
-    if (editorRef.value) {
-        editorRef.value.innerHTML = buildEditorHTML()
-        placeCursorIn(editorRef.value)
-    }
-})
-
-const escapeHtml = (text) => {
-    const div = document.createElement('div')
-    div.textContent = text ?? ''
-    return div.innerHTML
-}
-
-const createChecklistId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-const buildChecklistRowHTML = (item) => `
-    <div class="update-note__row update-note__row--checklist${item.isCompleted ? ' update-note__row--done' : ''}" data-checklist-id="${item.id}">
-        <span class="update-note__row-check" contenteditable="false">
-            <input type="checkbox" ${item.isCompleted ? 'checked' : ''}>
-        </span>
-        <span class="update-note__row-text" contenteditable="true">${escapeHtml(item.content) || '<br>'}</span>
-        <button type="button" class="update-note__row-remove" contenteditable="false">×</button>
-    </div>
-`.trim()
-
-const buildTextRowHTML = (line) =>
-    `<div class="update-note__row update-note__row--text">${escapeHtml(line) || '<br>'}</div>`
-
-const buildEditorHTML = () => {
-    const checklistHtml = form.checklist.map(buildChecklistRowHTML).join('')
-    const textHtml = (form.content ? form.content.split('\n') : ['']).map(buildTextRowHTML).join('')
-
-    return checklistHtml + textHtml
-}
-
-const parseEditorToForm = () => {
-    if (!editorRef.value) return
-
-    const rows = Array.from(editorRef.value.children)
-    const textLines = []
-    const checklistItems = []
-    const images = []
-    let position = 1
-
-    rows.forEach((row) => {
-        const imgEl = row.querySelector('img')
-        if (imgEl) {
-            images.push({
-                id: row.dataset.imageId,
-                src: imgEl.src,
-                width: imgEl.style.width ? parseInt(imgEl.style.width, 10) : null,
-                position: position++,
-            })
-            return
-        }
-
-        const checkboxEl = row.querySelector('input[type="checkbox"]')
-
-        if (checkboxEl) {
-            const textEl = row.querySelector('.update-note__row-text')
-
-            checklistItems.push({
-                id: row.dataset.checklistId || createChecklistId(),
-                content: textEl ? textEl.innerText.trim() : '',
-                isCompleted: checkboxEl.checked,
-                position: position++,
-            })
-        } else {
-            textLines.push(row.innerText)
-        }
-    })
-
-    form.content = textLines.join('\n')
-    form.checklist = checklistItems
-    form.images = images
-}
-
-let parseTimeout = null
-const handleEditorInput = () => {
-    clearTimeout(parseTimeout)
-    parseTimeout = setTimeout(parseEditorToForm, 300)
-}
-
-const createChecklistRowEl = (item) => {
-    const row = document.createElement('div')
-    row.className = 'update-note__row update-note__row--checklist'
-    row.dataset.checklistId = item.id
-
-    const checkWrap = document.createElement('span')
-    checkWrap.className = 'update-note__row-check'
-    checkWrap.setAttribute('contenteditable', 'false')
-
-    const checkbox = document.createElement('input')
-    checkbox.type = 'checkbox'
-    checkbox.checked = item.isCompleted
-    checkWrap.appendChild(checkbox)
-
-    const textSpan = document.createElement('span')
-    textSpan.className = 'update-note__row-text'
-    textSpan.setAttribute('contenteditable', 'true')
-
-    if (item.content) {
-        textSpan.textContent = item.content
-    } else {
-        textSpan.innerHTML = '<br>'
-    }
-    const removeBtn = document.createElement('button')
-    removeBtn.type = 'button'
-    removeBtn.className = 'update-note__row-remove'
-    removeBtn.setAttribute('contenteditable', 'false')
-    removeBtn.textContent = '×'
-
-    row.append(checkWrap, textSpan, removeBtn)
-
-    return row
-}
-
-const placeCursorIn = (el) => {
-    if (!el) return
-    const range = document.createRange()
-    range.selectNodeContents(el)
-    range.collapse(false)
-    const selection = window.getSelection()
-    selection.removeAllRanges()
-    selection.addRange(range)
-    el.focus()
-}
-
-const getCurrentRow = () => {
-    const selection = window.getSelection()
-    if (!selection || !selection.anchorNode) return null
-    const anchorEl = selection.anchorNode.nodeType === 3
-        ? selection.anchorNode.parentElement
-        : selection.anchorNode
-    return anchorEl?.closest('.update-note__row') ?? null
-}
+const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const addChecklistItem = () => {
-    if (!editorRef.value) return
-
-    const newRow = createChecklistRowEl({ id: createChecklistId(), content: '', isCompleted: false })
-    const currentRow = getCurrentRow()
-
-    if (currentRow && editorRef.value.contains(currentRow)) {
-        currentRow.after(newRow)
-    } else {
-        editorRef.value.appendChild(newRow)
-    }
-
-    placeCursorIn(newRow.querySelector('.update-note__row-text'))
-    parseEditorToForm()
+    form.checklist.push({
+        id: createId(),
+        content: '',
+        isCompleted: false,
+    })
 }
 
-const handleEditorKeydown = (e) => {
-    if (e.key === 'Enter') {
-        const row = getCurrentRow()
-        if (!row || !row.classList.contains('update-note__row--checklist')) return
+const removeChecklistItem = (id) => {
+    form.checklist = form.checklist.filter(item => item.id !== id)
+}
 
-        e.preventDefault()
+const canAddImage = computed(() => form.images.length < MAX_IMAGES)
 
-        const textSpan = row.querySelector('.update-note__row-text')
-        const isEmpty = textSpan.innerText.trim() === ''
-
-        if (isEmpty) {
-            const textRow = document.createElement('div')
-            textRow.className = 'update-note__row update-note__row--text'
-            textRow.innerHTML = '<br>'
-            row.replaceWith(textRow)
-            placeCursorIn(textRow)
-        } else {
-            const newRow = createChecklistRowEl({ id: createChecklistId(), content: '', isCompleted: false })
-            row.after(newRow)
-            placeCursorIn(newRow.querySelector('.update-note__row-text'))
-        }
-
-        parseEditorToForm()
+const triggerImageUpload = () => {
+    if (!canAddImage.value) {
+        imageError.value = `Maksimal ${MAX_IMAGES} gambar`
         return
     }
+    imageInputRef.value?.click()
+}
 
-    if (e.key === 'Backspace') {
-        const selection = window.getSelection()
-        if (!selection || !selection.isCollapsed) return
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+})
 
-        const anchorEl = selection.anchorNode?.nodeType === 3
-            ? selection.anchorNode.parentElement
-            : selection.anchorNode
+const formatSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`
+    return `${(bytes / 1024).toFixed(1)} KB`
+}
 
-        const textSpan = anchorEl?.closest('.update-note__row-text')
-        if (!textSpan) return
+const handleImageSelected = async (e) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    imageError.value = ''
 
-        const row = textSpan.closest('.update-note__row--checklist')
-        if (!row) return
-
-        const atStart = selection.anchorOffset === 0
-        const isEmpty = textSpan.innerText.trim() === ''
-        if (!atStart && !isEmpty) return
-
-        e.preventDefault()
-
-        const prevRow = row.previousElementSibling
-        row.remove()
-
-        if (prevRow) {
-            const prevText = prevRow.querySelector('.update-note__row-text') || prevRow
-            placeCursorIn(prevText)
+    for (const file of files) {
+        if (form.images.length >= MAX_IMAGES) {
+            imageError.value = `Maksimal ${MAX_IMAGES} gambar`
+            break
         }
 
-        parseEditorToForm()
+        if (!file.type.startsWith('image/')) {
+            imageError.value = `${file.name} bukan file gambar`
+            continue
+        }
+
+        if (file.size > MAX_IMAGE_SIZE) {
+            imageError.value = `${file.name} melebihi batas ${MAX_IMAGE_SIZE_LABEL}`
+            continue
+        }
+
+        try {
+            const dataUrl = await readFileAsDataUrl(file)
+            form.images.push({
+                id: createId(),
+                name: file.name,
+                size: file.size,
+                src: dataUrl,
+            })
+        } catch {
+            imageError.value = `Gagal membaca ${file.name}`
+        }
     }
 }
 
-const handleEditorClick = (e) => {
-    const removeBtn = e.target.closest('.update-note__row-remove')
-    if (removeBtn) {
-        removeBtn.closest('.update-note__row')?.remove()
-        parseEditorToForm()
-        return
-    }
-
-    const checkbox = e.target.closest('input[type="checkbox"]')
-    if (checkbox) {
-        const row = checkbox.closest('.update-note__row')
-        row.classList.toggle('update-note__row--done', checkbox.checked)
-        parseEditorToForm()
-    }
+const removeImage = (id) => {
+    form.images = form.images.filter(image => image.id !== id)
 }
 
 const handleSave = async () => {
-    parseEditorToForm()
-
     if (!form.title.trim()) {
         saveError.value = 'Judul catatan tidak boleh kosong'
         return
@@ -322,7 +219,7 @@ const handleSave = async () => {
     try {
         await new Promise(resolve => setTimeout(resolve, 500))
         router.push('/notes')
-    } catch (error) {
+    } catch {
         saveError.value = 'Gagal membuat catatan, coba lagi'
     } finally {
         isSaving.value = false
@@ -337,101 +234,5 @@ const handleCancel = () => {
     }
 
     router.push('/notes')
-}
-
-const imageInputRef = ref(null)
-
-const triggerImageUpload = () => {
-    imageInputRef.value?.click()
-}
-
-const handleImageSelected = async (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-
-    if (!file) return
-
-    const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result)
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-    })
-
-    insertImageRow(dataUrl)
-}
-
-const createImageRowEl = (src, id, width) => {
-    const row = document.createElement('div')
-    row.className = 'update-note__row update-note__row--image'
-    row.dataset.imageId = id
-    row.setAttribute('contenteditable', 'false')
-
-    const img = document.createElement('img')
-    img.src = src
-    img.className = 'update-note__row-image'
-    img.alt = ''
-    if (width) img.style.width = `${width}px`
-
-    const removeBtn = document.createElement('button')
-    removeBtn.type = 'button'
-    removeBtn.className = 'update-note__row-remove'
-    removeBtn.setAttribute('contenteditable', 'false')
-    removeBtn.textContent = '×'
-
-    const resizeHandle = document.createElement('span')
-    resizeHandle.className = 'update-note__row-resize'
-    resizeHandle.setAttribute('contenteditable', 'false')
-
-    row.append(img, removeBtn, resizeHandle)
-    let startX = 0
-    let startWidth = 0
-
-    const onPointerMove = (e) => {
-        const delta = e.clientX - startX
-        const maxWidth = editorRef.value?.clientWidth || 9999
-        const newWidth = Math.min(Math.max(startWidth + delta, 80), maxWidth)
-        img.style.width = `${newWidth}px`
-    }
-
-    const onPointerUp = () => {
-        window.removeEventListener('pointermove', onPointerMove)
-        window.removeEventListener('pointerup', onPointerUp)
-        parseEditorToForm()
-    }
-
-    resizeHandle.addEventListener('pointerdown', (e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        startX = e.clientX
-        startWidth = img.getBoundingClientRect().width
-        window.addEventListener('pointermove', onPointerMove)
-        window.addEventListener('pointerup', onPointerUp)
-    })
-
-    return row
-}
-
-const insertImageRow = (src) => {
-    if (!editorRef.value) return
-
-    const newRow = createImageRowEl(src, createChecklistId())
-    const currentRow = getCurrentRow()
-
-    if (currentRow && editorRef.value.contains(currentRow)) {
-        currentRow.after(newRow)
-    } else {
-        editorRef.value.appendChild(newRow)
-    }
-
-    let nextEditable = newRow.nextElementSibling
-    if (!nextEditable) {
-        nextEditable = document.createElement('div')
-        nextEditable.className = 'update-note__row update-note__row--text'
-        nextEditable.innerHTML = '<br>'
-        newRow.after(nextEditable)
-    }
-    placeCursorIn(nextEditable)
-    parseEditorToForm()
 }
 </script>

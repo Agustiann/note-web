@@ -161,7 +161,21 @@ h2 {
   font-size: 14px;
   text-align: center;
 }
+.switch-auth {
+    text-align: center;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--color-ink-soft);
 
+    a {
+        color: var(--color-accent);
+        font-weight: 600;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
 .password-input {
   position: relative;
 

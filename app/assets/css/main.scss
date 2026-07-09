@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 :root {
     --color-bg: #f5f4f1;
@@ -22,8 +22,8 @@
 
     --color-border: #eaeaea;
 
-    --font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
-    --font-body: 'Inter', 'Segoe UI', sans-serif;
+    --font-display: 'Poppins', 'Segoe UI', sans-serif;
+    --font-body: 'Poppins', 'Segoe UI', sans-serif;
 
     --radius-sm: 8px;
     --radius-md: 14px;
@@ -243,8 +243,18 @@ ul {
         flex-direction: column;
     }
 
+    /* ganti bagian &__folder di dalam .sidebar jadi flex row wrapper baru */
+
+    &__folder-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        position: relative;
+    }
+
     &__folder {
-        width: 100%;
+        flex: 1;
+        min-width: 0;
         display: flex;
         align-items: center;
         gap: 10px;
@@ -258,10 +268,82 @@ ul {
             color: var(--color-bg);
 
             .sidebar__folder-name,
-            .sidebar__folder-count,
             .sidebar__folder-icon {
                 color: var(--color-bg);
             }
+        }
+    }
+
+    &__folder-icon {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        color: inherit;
+    }
+
+    &__folder-name {
+        flex: 1;
+        min-width: 0;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__folder-menu {
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    &__folder-menu-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        color: var(--color-ink-soft);
+        transition: background 0.15s ease, color 0.15s ease;
+
+        &:hover {
+            background: var(--color-accent-soft);
+            color: var(--color-accent);
+        }
+    }
+
+    &__folder-dropdown {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        z-index: 20;
+        min-width: 140px;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow-card);
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    &__folder-dropdown-item {
+        width: 100%;
+        text-align: left;
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+        color: var(--color-ink);
+        transition: background 0.15s ease, color 0.15s ease;
+
+        &:hover {
+            background: var(--color-accent-soft);
+            color: var(--color-accent);
+        }
+
+        &--danger:hover {
+            background: var(--color-danger-soft);
+            color: var(--color-danger);
         }
     }
 
@@ -487,7 +569,14 @@ ul {
 /* ---- Page: dashboard/index ---- */
 .dashboard {
     max-width: 100%;
-
+    &__title {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 20px;
+        flex-wrap: wrap;
+        margin-bottom: 28px;
+    }
     &__topbar {
         display: flex;
         align-items: center;
@@ -677,7 +766,7 @@ ul {
         outline: none;
         font-family: var(--font-display);
         font-size: 22px;
-        font-weight: 700;
+        font-weight: 600;
         color: var(--color-ink);
         background: transparent;
 
@@ -725,10 +814,17 @@ ul {
         }
     }
 
-    &__body-header {
+    &__section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-top: 16px;
+        border-top: 1px solid var(--color-border);
+    }
+
+    &__section-header {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 12px;
 
         label {
@@ -736,10 +832,11 @@ ul {
             text-transform: uppercase;
             letter-spacing: 0.06em;
             color: var(--color-ink-soft);
+            flex: 1;
         }
     }
 
-    &__checklist-add {
+    &__section-add {
         font-size: 12px;
         font-weight: 600;
         color: var(--color-accent);
@@ -747,71 +844,99 @@ ul {
         &:hover {
             text-decoration: underline;
         }
+        &:disabled {
+            color: var(--color-ink-soft);
+            cursor: not-allowed;
+            text-decoration: none;
+        }
     }
 
-    &__editor {
+    &__textarea {
         border: 1px solid var(--color-border);
         border-radius: var(--radius-sm);
         padding: 14px 16px;
-        min-height: 260px;
+        min-height: 160px;
         font-family: var(--font-body);
         font-size: 14px;
         line-height: 1.6;
         color: var(--color-ink);
         outline: none;
+        resize: vertical;
         transition: border-color 0.15s ease;
 
-        &:focus-within {
+        &:focus {
             border-color: var(--color-accent);
         }
 
-        &:empty::before {
-            content: 'Tulis catatan atau tambahkan checklist di sini...';
+        &::placeholder {
             color: var(--color-ink-soft);
         }
     }
 
-    &__row {
-        margin-bottom: 6px;
-
-        &:last-child {
-            margin-bottom: 0;
-        }
+    &__empty-hint {
+        font-size: 13px;
+        color: var(--color-ink-soft);
     }
 
-    &__row--text {
-        white-space: pre-wrap;
-        padding: 2px 0;
+    &__hint {
+        font-size: 12px;
+        color: var(--color-ink-soft);
     }
 
-    &__row--checklist {
+    &__checklist {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    &__checklist-item {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 2px 0;
-    }
+        padding: 6px 8px;
+        border-radius: var(--radius-sm);
+        transition: background 0.15s ease;
 
-    &__row-check {
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        &:hover {
+            background: var(--color-bg);
 
-        input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            accent-color: var(--color-accent);
-            cursor: pointer;
+            .update-note__checklist-remove {
+                opacity: 1;
+            }
+        }
+
+        &--done {
+            .update-note__checklist-input {
+                color: var(--color-ink-soft);
+                text-decoration: line-through;
+            }
         }
     }
 
-    &__row-text {
-        flex: 1;
-        outline: none;
-        padding: 2px;
+    &__checklist-checkbox {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        accent-color: var(--color-accent);
+        cursor: pointer;
     }
 
-    &__row-remove {
+    &__checklist-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        background: transparent;
+        font-family: var(--font-body);
+        font-size: 14px;
+        color: var(--color-ink);
+        padding: 4px 2px;
+
+        &::placeholder {
+            color: var(--color-ink-soft);
+        }
+    }
+
+    &__checklist-remove {
         flex-shrink: 0;
         width: 20px;
         height: 20px;
@@ -824,71 +949,80 @@ ul {
         line-height: 1;
         opacity: 0;
         transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
-    }
 
-    &__row--checklist:hover &__row-remove {
-        opacity: 1;
-    }
-
-    &__row-remove:hover {
-        background: var(--color-danger-soft);
-        color: var(--color-danger);
-    }
-
-    &__row--done {
-        .update-note__row-text {
-            color: var(--color-ink-soft);
-            text-decoration: line-through;
+        &:hover {
+            background: var(--color-danger-soft);
+            color: var(--color-danger);
         }
-    }
-
-    &__footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-top: 4px;
-    }
-
-    &__last-updated {
-        font-size: 12px;
-        color: var(--color-ink-soft);
-    }
-
-    &__error {
-        font-size: 12px;
-        color: var(--color-danger);
-        font-weight: 600;
     }
 
     &__image-input {
         display: none;
     }
 
-    &__row--image {
+    &__attachment-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    &__attachment-item {
         position: relative;
-        display: inline-block;
-        max-width: 100%;
-    }
-
-    &__row-image {
-        display: block;
-        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--color-border);
         border-radius: var(--radius-sm);
+        overflow: hidden;
+        background: var(--color-bg);
     }
 
-    &__row-resize {
+    &__attachment-preview {
+        width: 100%;
+        height: 90px;
+        object-fit: cover;
+        display: block;
+    }
+
+    &__attachment-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px 8px;
+    }
+
+    &__attachment-name {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--color-ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__attachment-size {
+        font-size: 10px;
+        color: var(--color-ink-soft);
+    }
+
+    &__attachment-remove {
         position: absolute;
-        right: 2px;
-        bottom: 2px;
-        width: 14px;
-        height: 14px;
-        border-radius: 3px 0 3px 0;
-        background: var(--color-accent);
-        cursor: nwse-resize;
-        opacity: 0;
-        transition: opacity 0.15s ease;
-        touch-action: none;
+        top: 4px;
+        right: 4px;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(20, 20, 43, 0.55);
+        color: #fff;
+        font-size: 14px;
+        line-height: 1;
+        transition: background 0.15s ease;
+
+        &:hover {
+            background: var(--color-danger);
+        }
     }
 
     &__row--image:hover &__row-resize {

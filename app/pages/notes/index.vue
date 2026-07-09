@@ -10,7 +10,10 @@
             </svg>
             <input type="text" placeholder="Cari catatan..." />
           </label>
-          <button class="dashboard__new-btn" type="button">+ Catatan baru</button>
+          <NuxtLink to="/notes/create" class="dashboard__new-btn">
+            <span class="sidebar__cta-icon">+</span>
+            Catatan Baru
+        </NuxtLink>
         </div>
       </header>
 

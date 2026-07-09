@@ -6,10 +6,10 @@
             </div>
             <span class="sidebar__brand-name">Notes</span>
         </div>
-        <button class="sidebar__cta" type="button">
+        <NuxtLink to="/notes/create" class="sidebar__cta">
             <span class="sidebar__cta-icon">+</span>
             Catatan Baru
-        </button>
+        </NuxtLink>
         <div class="sidebar__content">
             <nav class="sidebar__nav">
                 <NuxtLink to="/dashboard" class="sidebar__nav-item" active-class="sidebar__nav-item--active">
@@ -44,25 +44,58 @@
                 <ul class="sidebar__folders">
 
                     <li v-for="folder in localFolders" :key="folder.id" class="sidebar__folder-group">
-                        <button class="sidebar__folder" @click="toggleFolder(folder.id)">
-                            <svg class="sidebar__folder-icon" viewBox="0 0 24 24" fill="none">
-                                <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"
-                                    stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                            </svg>
-                            <template v-if="folder.isNew">
-                                <input id="new-folder-input" v-model="newFolderName" class="sidebar__folder-input"
-                                    placeholder="Nama folder..." @keyup.enter="saveFolder" @blur="saveFolder">
-                            </template>
+                        <div class="sidebar__folder-row">
+                            <button class="sidebar__folder" @click="toggleFolder(folder.id)">
+                                <svg class="sidebar__folder-icon" viewBox="0 0 24 24" fill="none">
+                                    <path
+                                        d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"
+                                        stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                                </svg>
 
-                            <template v-else>
-                                <span class="sidebar__folder-name">
-                                    {{ folder.name }}
-                                </span>
-                            </template>
-                            <span class="sidebar__folder-count">
-                                {{ folder.notes.length }}
-                            </span>
-                        </button>
+                                <template v-if="folder.isNew || folder.isRenaming">
+                                    <input :id="folder.isNew ? 'new-folder-input' : `rename-folder-${folder.id}`"
+                                        v-model="folderInputValue" class="sidebar__folder-input"
+                                        placeholder="Nama folder..." @click.stop @keyup.enter="confirmFolderInput"
+                                        @keyup.esc="cancelFolderInput" @blur="confirmFolderInput">
+                                </template>
+
+                                <template v-else>
+                                    <span class="sidebar__folder-name">
+                                        {{ folder.name }}
+                                    </span>
+                                </template>
+                            </button>
+
+                            <div v-if="!folder.isNew && !folder.isRenaming" class="sidebar__folder-menu">
+                                <button class="sidebar__folder-menu-trigger" type="button" aria-label="Opsi folder"
+                                    @click.stop="toggleFolderMenu(folder.id)">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                                        <circle cx="10" cy="4" r="1.6" />
+                                        <circle cx="10" cy="10" r="1.6" />
+                                        <circle cx="10" cy="16" r="1.6" />
+                                    </svg>
+                                </button>
+
+                                <Transition name="fade">
+                                    <ul v-if="openedMenuId === folder.id" class="sidebar__folder-dropdown">
+                                        <li>
+                                            <button type="button" class="sidebar__folder-dropdown-item"
+                                                @click.stop="startRenameFolder(folder)">
+                                                Ganti nama
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="button"
+                                                class="sidebar__folder-dropdown-item sidebar__folder-dropdown-item--danger"
+                                                @click.stop="deleteFolder(folder.id)">
+                                                Hapus
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </Transition>
+                            </div>
+                        </div>
+
                         <Transition name="fade">
                             <ul v-if="openedFolders.includes(folder.id)" class="sidebar__notes">
                                 <li v-for="note in folder.notes" :key="note.id">
@@ -157,14 +190,18 @@ const localFolders = ref(
     props.folders.map(folder => ({
         ...folder,
         notes: [...folder.notes],
+        isNew: false,
+        isRenaming: false,
     }))
 )
 
 const openedFolders = ref([])
+const openedMenuId = ref(null)
 
 const isCreatingFolder = ref(false)
-const newFolderName = ref('')
+const folderInputValue = ref('')
 const tempFolderId = ref(null)
+const renamingFolderId = ref(null)
 
 const toggleFolder = (id) => {
     const index = openedFolders.value.indexOf(id)
@@ -176,16 +213,40 @@ const toggleFolder = (id) => {
     }
 }
 
+const toggleFolderMenu = (id) => {
+    openedMenuId.value = openedMenuId.value === id ? null : id
+}
+
+const closeFolderMenu = () => {
+    openedMenuId.value = null
+}
+
+const handleClickOutside = (e) => {
+    if (!e.target.closest('.sidebar__folder-menu')) {
+        closeFolderMenu()
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleClickOutside)
+})
+
 const addFolder = () => {
     if (isCreatingFolder.value) return
 
     tempFolderId.value = Date.now()
+    folderInputValue.value = ''
 
     localFolders.value.push({
         id: tempFolderId.value,
         name: '',
         notes: [],
         isNew: true,
+        isRenaming: false,
     })
 
     isCreatingFolder.value = true
@@ -195,25 +256,78 @@ const addFolder = () => {
     })
 }
 
-const saveFolder = () => {
-    const name = newFolderName.value.trim()
+const startRenameFolder = (folder) => {
+    closeFolderMenu()
+    renamingFolderId.value = folder.id
+    folderInputValue.value = folder.name
+    folder.isRenaming = true
 
-    const index = localFolders.value.findIndex(
-        folder => folder.id === tempFolderId.value
-    )
+    nextTick(() => {
+        document.getElementById(`rename-folder-${folder.id}`)?.focus()
+    })
+}
 
-    if (index === -1) return
-
-    if (name === '') {
-        localFolders.value.splice(index, 1)
-    } else {
-        localFolders.value[index].name = name
-        localFolders.value[index].isNew = false
+const cancelFolderInput = () => {
+    if (isCreatingFolder.value) {
+        const index = localFolders.value.findIndex(folder => folder.id === tempFolderId.value)
+        if (index > -1) localFolders.value.splice(index, 1)
+        isCreatingFolder.value = false
+        tempFolderId.value = null
     }
 
-    newFolderName.value = ''
-    tempFolderId.value = null
-    isCreatingFolder.value = false
+    if (renamingFolderId.value !== null) {
+        const folder = localFolders.value.find(f => f.id === renamingFolderId.value)
+        if (folder) folder.isRenaming = false
+        renamingFolderId.value = null
+    }
+
+    folderInputValue.value = ''
+}
+
+const confirmFolderInput = () => {
+    const name = folderInputValue.value.trim()
+
+    if (isCreatingFolder.value) {
+        const index = localFolders.value.findIndex(folder => folder.id === tempFolderId.value)
+        if (index === -1) return
+
+        if (name === '') {
+            localFolders.value.splice(index, 1)
+        } else {
+            localFolders.value[index].name = name
+            localFolders.value[index].isNew = false
+        }
+
+        isCreatingFolder.value = false
+        tempFolderId.value = null
+        folderInputValue.value = ''
+        return
+    }
+
+    if (renamingFolderId.value !== null) {
+        const folder = localFolders.value.find(f => f.id === renamingFolderId.value)
+        if (folder) {
+            if (name !== '') folder.name = name
+            folder.isRenaming = false
+        }
+        renamingFolderId.value = null
+        folderInputValue.value = ''
+    }
+}
+
+const deleteFolder = (id) => {
+    closeFolderMenu()
+
+    const folder = localFolders.value.find(f => f.id === id)
+    if (!folder) return
+
+    const confirmed = confirm(`Hapus folder "${folder.name}"? Semua catatan di dalamnya akan ikut terhapus.`)
+    if (!confirmed) return
+
+    localFolders.value = localFolders.value.filter(f => f.id !== id)
+
+    const openedIndex = openedFolders.value.indexOf(id)
+    if (openedIndex > -1) openedFolders.value.splice(openedIndex, 1)
 }
 
 const totalNotes = computed(() => {

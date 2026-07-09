@@ -1,16 +1,9 @@
 <template>
   <NuxtLayout>
     <div class="dashboard">
-      <header class="dashboard__topbar">
+      <header class="dashboard__title">
         <div class="dashboard__actions">
-          <label class="dashboard__search">
-            <svg viewBox="0 0 20 20" fill="none" class="dashboard__search-icon">
-              <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" />
-              <path d="M17 17l-3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-            <input type="text" placeholder="Cari catatan..." />
-          </label>
-          <button class="dashboard__new-btn" type="button">+ Catatan baru</button>
+          <h2>Dashboard</h2>
         </div>
       </header>
 
@@ -38,8 +31,6 @@
 
 <script setup>
 definePageMeta({ layout: 'default' })
-
-const user = { name: 'Ardiansyah Ramadhan' }
 
 const folderPalette = {
   kerja: { name: 'Kerja', color: '#7b6ef6', softColor: '#edebfe' },
@@ -97,17 +88,9 @@ const notes = [
   },
 ]
 
-const unfinished = computed(() =>
-  notes.filter((n) => n.checklists.some((c) => !c.is_completed))
-)
 const recent = computed(() => [...notes].slice(0, 3))
 
 const stats = computed(() => {
-  const totalChecklist = notes.reduce((sum, n) => sum + n.checklists.length, 0)
-  const doneChecklist = notes.reduce(
-    (sum, n) => sum + n.checklists.filter((c) => c.is_completed).length,
-    0
-  )
   return [
     { label: 'Total catatan', value: notes.length },
     { label: 'Folder aktif', value: Object.keys(folderPalette).length },
