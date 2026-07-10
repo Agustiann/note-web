@@ -35,14 +35,15 @@
 
             </nav>
             <div class="sidebar__section">
-
-                <div class="sidebar__section-header">
+                <div class="sidebar__section-header"
+                    :class="{ 'sidebar__section-header--drop-target': isDragOverUnfiled }"
+                    @dragover.prevent="handleUnfiledDragOver" @dragleave="handleUnfiledDragLeave"
+                    @drop.prevent="handleFolderDrop(null)">
                     <p class="sidebar__section-title">
                         Folder
                     </p>
                 </div>
                 <ul class="sidebar__folders">
-
                     <li v-for="folder in localFolders" :key="folder.id" class="sidebar__folder-group">
                         <div class="sidebar__folder-row"
                             :class="{ 'sidebar__folder-row--drop-target': dragOverFolderId === folder.id }"
@@ -119,6 +120,23 @@
                             </ul>
                         </Transition>
                     </li>
+
+                    <li v-for="note in unfiledNotes" :key="`unfiled-${note.id}`"
+                        class="sidebar__note-item sidebar__note-item--flat"
+                        :class="{ 'sidebar__note-item--dragging': draggedNote?.noteId === note.id }"
+                        draggable="true" @dragstart="handleNoteDragStart(note, null, $event)"
+                        @dragend="handleNoteDragEnd">
+                        <NuxtLink to="/notes/update" class="sidebar__note sidebar__note--flat"
+                            active-class="sidebar__note--active">
+                            <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
+                                <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
+                                    stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                                <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
+                                    stroke-linejoin="round" />
+                            </svg>
+                            <span>{{ note.title }}</span>
+                        </NuxtLink>
+                    </li>
                 </ul>
 
                 <button class="sidebar__folder-add" type="button" @click="addFolder">
@@ -182,6 +200,13 @@ const props = defineProps({
             },
         ]),
     },
+    unfiledNotes: {
+        type: Array,
+        default: () => ([
+            { id: 9, title: 'Ide Konten' },
+            { id: 10, title: 'Catatan Rapat' },
+        ]),
+    },
 
     user: {
         type: Object,
@@ -202,7 +227,7 @@ const localFolders = ref(
         isRenaming: false,
     }))
 )
-
+const unfiledNotes = ref([...props.unfiledNotes])
 const openedFolders = ref([])
 const openedMenuId = ref(null)
 
@@ -340,6 +365,7 @@ const deleteFolder = (id) => {
 
 const draggedNote = ref(null)
 const dragOverFolderId = ref(null)
+const isDragOverUnfiled = ref(false)
 
 const handleNoteDragStart = (note, sourceFolderId, event) => {
     draggedNote.value = { noteId: note.id, sourceFolderId }
@@ -348,10 +374,9 @@ const handleNoteDragStart = (note, sourceFolderId, event) => {
         event.dataTransfer.setData('text/plain', note.title)
 
         const dragPreview = document.createElement('div')
+        dragPreview.className = 'drag-preview'
         dragPreview.textContent = note.title
-        
         document.body.appendChild(dragPreview)
-
         event.dataTransfer.setDragImage(dragPreview, 10, 10)
 
         requestAnimationFrame(() => {
@@ -363,6 +388,7 @@ const handleNoteDragStart = (note, sourceFolderId, event) => {
 const handleNoteDragEnd = () => {
     draggedNote.value = null
     dragOverFolderId.value = null
+    isDragOverUnfiled.value = false
 }
 
 const handleFolderDragOver = (folderId) => {
@@ -376,9 +402,19 @@ const handleFolderDragLeave = (folderId) => {
         dragOverFolderId.value = null
     }
 }
+const handleUnfiledDragOver = () => {
+    if (!draggedNote.value) return
+    if (draggedNote.value.sourceFolderId === null) return
+    isDragOverUnfiled.value = true
+}
+
+const handleUnfiledDragLeave = () => {
+    isDragOverUnfiled.value = false
+}
 
 const handleFolderDrop = (targetFolderId) => {
     dragOverFolderId.value = null
+    isDragOverUnfiled.value = false
 
     if (!draggedNote.value) return
 
@@ -386,29 +422,49 @@ const handleFolderDrop = (targetFolderId) => {
     draggedNote.value = null
 
     if (sourceFolderId === targetFolderId) return
+    let movedNote = null
 
-    const sourceFolder = localFolders.value.find(f => f.id === sourceFolderId)
-    const targetFolder = localFolders.value.find(f => f.id === targetFolderId)
+    if (sourceFolderId === null) {
+        const index = unfiledNotes.value.findIndex(n => n.id === noteId)
+        if (index === -1) return
+            ;[movedNote] = unfiledNotes.value.splice(index, 1)
+    } else {
+        const sourceFolder = localFolders.value.find(f => f.id === sourceFolderId)
+        if (!sourceFolder) return
+        const index = sourceFolder.notes.findIndex(n => n.id === noteId)
+        if (index === -1) return
+            ;[movedNote] = sourceFolder.notes.splice(index, 1)
+    }
 
-    if (!sourceFolder || !targetFolder) return
+    if (!movedNote) return
 
-    const noteIndex = sourceFolder.notes.findIndex(n => n.id === noteId)
-    if (noteIndex === -1) return
+    if (targetFolderId === null) {
+        unfiledNotes.value.push(movedNote)
+    } else {
+        const targetFolder = localFolders.value.find(f => f.id === targetFolderId)
 
-    const [movedNote] = sourceFolder.notes.splice(noteIndex, 1)
-    targetFolder.notes.push(movedNote)
+        if (!targetFolder) {
+            if (sourceFolderId === null) {
+                unfiledNotes.value.push(movedNote)
+            } else {
+                localFolders.value.find(f => f.id === sourceFolderId)?.notes.push(movedNote)
+            }
+            return
+        }
 
-    if (!openedFolders.value.includes(targetFolderId)) {
-        openedFolders.value.push(targetFolderId)
+        targetFolder.notes.push(movedNote)
+
+        if (!openedFolders.value.includes(targetFolderId)) {
+            openedFolders.value.push(targetFolderId)
+        }
     }
 
     emit('note-moved', { noteId, fromFolderId: sourceFolderId, toFolderId: targetFolderId })
 }
 
 const totalNotes = computed(() => {
-    return localFolders.value.reduce((total, folder) => {
-        return total + folder.notes.length
-    }, 0)
+    const inFolders = localFolders.value.reduce((total, folder) => total + folder.notes.length, 0)
+    return inFolders + unfiledNotes.value.length
 })
 
 const userInitial = computed(() => {
