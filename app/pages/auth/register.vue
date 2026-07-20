@@ -15,19 +15,19 @@
             <form @submit.prevent="register">
                 <div class="form-group">
                     <label>Nama Lengkap</label>
-                    <input v-model="form.name" type="text" placeholder="Masukkan nama lengkap">
+                    <input v-model="form.name" type="text" placeholder="Masukkan nama lengkap" required>
                 </div>
 
                 <div class="form-group">
                     <label>Email</label>
-                    <input v-model="form.email" type="text" placeholder="Masukkan email">
+                    <input v-model="form.email" type="email" placeholder="Masukkan email" required>
                 </div>
 
                 <div class="form-group">
                     <label>Password</label>
                     <div class="password-input">
                         <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
-                            placeholder="Masukkan password">
+                            placeholder="Masukkan password" required>
                         <button type="button" class="toggle-password" @click="showPassword = !showPassword">
                             <Eye v-if="!showPassword" :size="20" />
                             <EyeClosed v-else :size="20" />
@@ -39,7 +39,7 @@
                     <label>Konfirmasi Password</label>
                     <div class="password-input">
                         <input v-model="form.confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
-                            placeholder="Ulangi password">
+                            placeholder="Ulangi password" required>
                         <button type="button" class="toggle-password"
                             @click="showConfirmPassword = !showConfirmPassword">
                             <Eye v-if="!showConfirmPassword" :size="20" />
@@ -49,7 +49,8 @@
                 </div>
 
                 <button type="submit" class="btn-login" :disabled="isSubmitting">
-                    {{ isSubmitting ? 'Memproses...' : 'Daftar' }}
+                    <span v-if="isSubmitting" class="spinner"></span>
+                    <span v-else>Daftar</span>
                 </button>
 
                 <p class="switch-auth">
@@ -65,6 +66,8 @@
 import '~/assets/css/login.scss'
 import { Eye, EyeClosed } from 'lucide-vue-next'
 
+const { register: registerRequest } = useAuth()
+
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 const isSubmitting = ref(false)
@@ -78,33 +81,29 @@ const form = ref({
     confirmPassword: '',
 })
 
-function register() {
-    if (
-        !form.value.name ||
-        !form.value.email ||
-        !form.value.password ||
-        !form.value.confirmPassword
-    ) {
-        errorMessage.value = 'Semua field wajib diisi.'
-        return
-    }
-
-    if (form.value.password !== form.value.confirmPassword) {
-        errorMessage.value = 'Password dan konfirmasi password tidak sama.'
-        return
-    }
-
-    if (form.value.password.length < 6) {
-        errorMessage.value = 'Password minimal 6 karakter.'
-        return
-    }
-
+async function register() {
     errorMessage.value = ''
     isSubmitting.value = true
 
-    setTimeout(() => {
+    try {
+        await registerRequest({
+            name: form.value.name,
+            email: form.value.email,
+            password: form.value.password,
+            password_confirmation: form.value.confirmPassword,
+        })
+
+        navigateTo('/auth/login')
+    } catch (error) {
+        const data = error?.data
+
+        if (data?.errors) {
+            errorMessage.value = Object.values(data.errors).flat().join(' ')
+        } else {
+            errorMessage.value = data?.message || 'Terjadi kesalahan, silakan coba lagi.'
+        }
+    } finally {
         isSubmitting.value = false
-        navigateTo('/')
-    }, 500)
+    }
 }
 </script>

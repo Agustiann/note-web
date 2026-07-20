@@ -23,6 +23,7 @@
                     <div class="update-note__field">
                         <label for="note-folder">Folder</label>
                         <select id="note-folder" v-model="form.folderId">
+                            <option :value="null">Tanpa folder</option>
                             <option v-for="folder in folders" :key="folder.id" :value="folder.id">
                                 {{ folder.name }}
                             </option>
@@ -56,10 +57,9 @@
                             <img :src="image.src" :alt="image.name" class="update-note__attachment-preview">
                             <div class="update-note__attachment-meta">
                                 <span class="update-note__attachment-name">{{ image.name }}</span>
-                                <span class="update-note__attachment-size">{{ formatSize(image.size) }}</span>
                             </div>
                             <button type="button" class="update-note__attachment-remove" aria-label="Hapus gambar"
-                                @click="removeImage(image.id)">
+                                :disabled="image.isDeleting" @click="removeImage(image.id)">
                                 ×
                             </button>
                         </div>
@@ -81,7 +81,9 @@
                             + Tambah checklist
                         </button>
                     </div>
-
+                    <p class="update-note__hint">
+                        Checklist belum tersimpan ke server (belum ada endpoint checklist).
+                    </p>
                     <ul v-if="form.checklist.length" class="update-note__checklist">
                         <li v-for="item in form.checklist" :key="item.id" class="update-note__checklist-item"
                             :class="{ 'update-note__checklist-item--done': item.isCompleted }">
@@ -116,16 +118,15 @@
 
 <script setup>
 const router = useRouter()
+const route = useRoute()
+const noteId = computed(() => route.query.id)
 
-const MAX_IMAGES = 3
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024
-const MAX_IMAGE_SIZE_LABEL = '2MB'
+const { fetchFolders } = useFolders()
+const { fetchNote, updateNote, deleteNote } = useNotes()
+const { uploadImage, deleteImage, fetchImageBlobUrl } = useNoteImages()
+const { notifyNotesChanged } = useNotesSync()
 
-const folders = ref([
-    { id: 1, name: 'Kerja' },
-    { id: 2, name: 'Pribadi' },
-    { id: 3, name: 'Belajar' },
-])
+const folders = ref([])
 
 const form = reactive({
     title: '',
@@ -151,36 +152,72 @@ const lastUpdatedLabel = computed(() => {
 
 const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-const fetchDummyNote = async () => {
-    return {
-        title: 'Meeting Senin',
-        folderId: 1,
-        content: 'Bahas progress sprint minggu ini dan blocker dari tim design.\nSiapkan slide sebelum jam 10.',
-        checklist: [
-            { id: 'c1', content: 'Siapkan bahan presentasi', isCompleted: true },
-            { id: 'c2', content: 'Konfirmasi jadwal ke tim', isCompleted: false },
-        ],
-        images: [],
-        updatedAt: new Date().toISOString(),
+const loadImagePreviews = (images) => {
+    for (const image of images) {
+        const target = form.images.find((img) => img.id === image.id) ?? image
+
+        fetchImageBlobUrl(target.url)
+            .then((blobUrl) => { target.src = blobUrl })
+            .catch(() => { })
     }
 }
 
-onMounted(async () => {
+const revokeImagePreviews = () => {
+    for (const image of form.images) {
+        if (image.src) URL.revokeObjectURL(image.src)
+    }
+}
+
+onBeforeUnmount(() => {
+    revokeImagePreviews()
+})
+
+const loadNote = async (id) => {
+    if (!id) {
+        saveError.value = 'Catatan tidak ditemukan.'
+        isLoading.value = false
+        return
+    }
+
     isLoading.value = true
+    saveError.value = ''
 
     try {
-        const note = await fetchDummyNote()
+        const [note, folderList] = await Promise.all([
+            fetchNote(id),
+            fetchFolders(),
+        ])
+
+        folders.value = folderList
 
         form.title = note.title
-        form.folderId = note.folderId
-        form.content = note.content
-        form.checklist = note.checklist.map(item => ({ ...item, id: item.id || createId() }))
-        form.images = (note.images ?? []).map(image => ({ ...image, id: image.id || createId() }))
-        lastUpdated.value = new Date(note.updatedAt)
+        form.folderId = note.folder_id
+        form.content = note.content ?? ''
+        revokeImagePreviews()
+        form.checklist = (note.checklists ?? []).map(item => ({
+            id: item.id || createId(),
+            content: item.content,
+            isCompleted: item.is_completed,
+        }))
+        form.images = (note.images ?? []).map(image => ({
+            id: image.id,
+            name: image.file_name ?? '',
+            url: image.url,
+            src: null,
+            isDeleting: false,
+        }))
+        loadImagePreviews(form.images)
+        lastUpdated.value = new Date(note.updated_at)
+    } catch (error) {
+        saveError.value = error?.data?.message || 'Gagal memuat catatan.'
     } finally {
         isLoading.value = false
     }
-})
+}
+
+watch(noteId, (id) => {
+    loadNote(id)
+}, { immediate: true })
 
 const addChecklistItem = () => {
     form.checklist.push({
@@ -202,18 +239,6 @@ const triggerImageUpload = () => {
         return
     }
     imageInputRef.value?.click()
-}
-
-const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-})
-
-const formatSize = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`
-    return `${(bytes / 1024).toFixed(1)} KB`
 }
 
 const handleImageSelected = async (e) => {
@@ -243,21 +268,36 @@ const handleImageSelected = async (e) => {
         }
 
         try {
-            const dataUrl = await readFileAsDataUrl(file)
-            form.images.push({
-                id: createId(),
-                name: file.name,
-                size: file.size,
-                src: dataUrl,
-            })
-        } catch {
-            imageError.value = `Gagal membaca ${file.name}`
+            const uploaded = await uploadImage(noteId.value, file)
+            const entry = {
+                id: uploaded.id,
+                name: uploaded.file_name,
+                url: uploaded.url,
+                src: null,
+                isDeleting: false,
+            }
+            form.images.push(entry)
+            loadImagePreviews([entry])
+        } catch (error) {
+            imageError.value = error?.data?.message || `Gagal mengunggah ${file.name}`
         }
     }
 }
 
-const removeImage = (id) => {
-    form.images = form.images.filter(image => image.id !== id)
+const removeImage = async (id) => {
+    const image = form.images.find(img => img.id === id)
+    if (!image || image.isDeleting) return
+
+    image.isDeleting = true
+
+    try {
+        await deleteImage(noteId.value, id)
+        if (image.src) URL.revokeObjectURL(image.src)
+        form.images = form.images.filter(img => img.id !== id)
+    } catch (error) {
+        image.isDeleting = false
+        imageError.value = error?.data?.message || 'Gagal menghapus gambar.'
+    }
 }
 
 const handleSave = async () => {
@@ -270,10 +310,17 @@ const handleSave = async () => {
     isSaving.value = true
 
     try {
-        await new Promise(resolve => setTimeout(resolve, 500))
-        lastUpdated.value = new Date()
-    } catch {
-        saveError.value = 'Gagal menyimpan perubahan, coba lagi'
+        const updated = await updateNote(noteId.value, {
+            title: form.title.trim(),
+            content: form.content?.trim() || null,
+            folder_id: form.folderId,
+        })
+        lastUpdated.value = new Date(updated.updated_at)
+        notifyNotesChanged()
+    } catch (error) {
+        saveError.value = error?.data?.errors?.title?.[0]
+            || error?.data?.message
+            || 'Gagal menyimpan perubahan, coba lagi'
     } finally {
         isSaving.value = false
     }
@@ -283,6 +330,12 @@ const handleDelete = async () => {
     const confirmed = confirm('Hapus catatan ini? Tindakan ini tidak bisa dibatalkan.')
     if (!confirmed) return
 
-    router.push('/notes')
+    try {
+        await deleteNote(noteId.value)
+        notifyNotesChanged()
+        router.push('/notes')
+    } catch (error) {
+        saveError.value = error?.data?.message || 'Gagal menghapus catatan.'
+    }
 }
 </script>

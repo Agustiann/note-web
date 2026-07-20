@@ -19,6 +19,7 @@
                     <div class="update-note__field">
                         <label for="note-folder">Folder</label>
                         <select id="note-folder" v-model="form.folderId">
+                            <option :value="null">Tanpa folder</option>
                             <option v-for="folder in folders" :key="folder.id" :value="folder.id">
                                 {{ folder.name }}
                             </option>
@@ -40,6 +41,7 @@
 
                     <p class="update-note__hint">
                         Maksimal {{ MAX_IMAGES }} gambar, masing-masing maksimal {{ MAX_IMAGE_SIZE_LABEL }}.
+                        Gambar akan diunggah setelah catatan disimpan.
                     </p>
 
                     <span v-if="imageError" class="update-note__error">
@@ -51,7 +53,6 @@
                             <img :src="image.src" :alt="image.name" class="update-note__attachment-preview">
                             <div class="update-note__attachment-meta">
                                 <span class="update-note__attachment-name">{{ image.name }}</span>
-                                <span class="update-note__attachment-size">{{ formatSize(image.size) }}</span>
                             </div>
                             <button type="button" class="update-note__attachment-remove" aria-label="Hapus gambar"
                                 @click="removeImage(image.id)">
@@ -76,6 +77,10 @@
                             + Tambah checklist
                         </button>
                     </div>
+
+                    <p class="update-note__hint">
+                        Checklist belum tersimpan ke server (belum ada endpoint checklist).
+                    </p>
 
                     <ul v-if="form.checklist.length" class="update-note__checklist">
                         <li v-for="item in form.checklist" :key="item.id" class="update-note__checklist-item"
@@ -108,20 +113,16 @@
 
 <script setup>
 const router = useRouter()
+const { fetchFolders } = useFolders()
+const { createNote } = useNotes()
+const { uploadImage } = useNoteImages()
+const { notifyNotesChanged } = useNotesSync()
 
-const MAX_IMAGES = 3
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024
-const MAX_IMAGE_SIZE_LABEL = '2MB'
-
-const folders = ref([
-    { id: 1, name: 'Kerja' },
-    { id: 2, name: 'Pribadi' },
-    { id: 3, name: 'Belajar' },
-])
+const folders = ref([])
 
 const form = reactive({
     title: '',
-    folderId: folders.value[0]?.id ?? null,
+    folderId: null,
     content: '',
     checklist: [],
     images: [],
@@ -131,6 +132,13 @@ const isSaving = ref(false)
 const saveError = ref('')
 const imageError = ref('')
 const imageInputRef = ref(null)
+
+onMounted(async () => {
+    try {
+        folders.value = await fetchFolders()
+    } catch {
+    }
+})
 
 const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -163,11 +171,6 @@ const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
     reader.readAsDataURL(file)
 })
 
-const formatSize = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`
-    return `${(bytes / 1024).toFixed(1)} KB`
-}
-
 const handleImageSelected = async (e) => {
     const files = Array.from(e.target.files ?? [])
     e.target.value = ''
@@ -194,8 +197,8 @@ const handleImageSelected = async (e) => {
             form.images.push({
                 id: createId(),
                 name: file.name,
-                size: file.size,
                 src: dataUrl,
+                file,
             })
         } catch {
             imageError.value = `Gagal membaca ${file.name}`
@@ -217,10 +220,32 @@ const handleSave = async () => {
     isSaving.value = true
 
     try {
-        await new Promise(resolve => setTimeout(resolve, 500))
+        const note = await createNote({
+            title: form.title.trim(),
+            content: form.content?.trim() || null,
+            folder_id: form.folderId,
+        })
+
+        const failedUploads = []
+        for (const image of form.images) {
+            try {
+                await uploadImage(note.id, image.file)
+            } catch {
+                failedUploads.push(image.name)
+            }
+        }
+
+        notifyNotesChanged()
+
+        if (failedUploads.length) {
+            alert(`Catatan tersimpan, tapi gagal mengunggah: ${failedUploads.join(', ')}`)
+        }
+
         router.push('/notes')
-    } catch {
-        saveError.value = 'Gagal membuat catatan, coba lagi'
+    } catch (error) {
+        saveError.value = error?.data?.errors?.title?.[0]
+            || error?.data?.message
+            || 'Gagal membuat catatan, coba lagi'
     } finally {
         isSaving.value = false
     }

@@ -19,14 +19,14 @@
             <form @submit.prevent="login">
                 <div class="form-group">
                     <label>Email</label>
-                    <input v-model="form.email" type="text" placeholder="Masukkan email">
+                    <input v-model="form.email" type="email" placeholder="Masukkan email" required>
                 </div>
 
                 <div class="form-group">
                     <label>Password</label>
                     <div class="password-input">
                         <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
-                            placeholder="Masukkan Password">
+                            placeholder="Masukkan Password" required>
                         <button type="button" class="toggle-password" @click="showPassword = !showPassword">
                             <Eye v-if="!showPassword" :size="20" />
                             <EyeClosed v-else :size="20" />
@@ -34,8 +34,9 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn-login">
-                    Login
+                <button type="submit" class="btn-login" :disabled="isSubmitting">
+                    <span v-if="isSubmitting" class="spinner"></span>
+                    <span v-else>Login</span>
                 </button>
 
                 <p class="switch-auth">
@@ -53,7 +54,10 @@
 import '~/assets/css/login.scss'
 import { Eye, EyeClosed } from 'lucide-vue-next'
 
+const { login: loginRequest } = useAuth()
+
 const showPassword = ref(false)
+const isSubmitting = ref(false)
 
 const errorMessage = ref('')
 
@@ -62,18 +66,23 @@ const form = ref({
     password: ''
 })
 
-function login() {
-
-    if (
-        !form.value.email ||
-        !form.value.password
-    ) {
-        errorMessage.value = 'Semua field wajib diisi.'
-        return
-    }
-
+async function login() {
     errorMessage.value = ''
+    isSubmitting.value = true
 
-    navigateTo('/dashboard')
+    try {
+        await loginRequest(form.value.email, form.value.password)
+        navigateTo('/dashboard')
+    } catch (error) {
+        const data = error?.data
+
+        if (data?.errors) {
+            errorMessage.value = Object.values(data.errors).flat().join(' ')
+        } else {
+            errorMessage.value = data?.message || 'Terjadi kesalahan, silakan coba lagi.'
+        }
+    } finally {
+        isSubmitting.value = false
+    }
 }
 </script>

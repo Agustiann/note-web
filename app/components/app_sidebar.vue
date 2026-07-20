@@ -43,6 +43,9 @@
                         Folder
                     </p>
                 </div>
+
+                <p v-if="loadError" class="update-note__error">{{ loadError }}</p>
+
                 <ul class="sidebar__folders">
                     <li v-for="folder in localFolders" :key="folder.id" class="sidebar__folder-group">
                         <div class="sidebar__folder-row"
@@ -106,8 +109,8 @@
                                     :class="{ 'sidebar__note-item--dragging': draggedNote?.noteId === note.id }"
                                     draggable="true" @dragstart="handleNoteDragStart(note, folder.id, $event)"
                                     @dragend="handleNoteDragEnd">
-                                    <NuxtLink to="/notes/update" class="sidebar__note"
-                                        active-class="sidebar__note--active">
+                                    <NuxtLink :to="`/notes/update?id=${note.id}`" class="sidebar__note"
+                                        :class="{ 'sidebar__note--active': activeNoteId === note.id }">
                                         <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
                                             <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
                                                 stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
@@ -126,8 +129,8 @@
                         :class="{ 'sidebar__note-item--dragging': draggedNote?.noteId === note.id }"
                         draggable="true" @dragstart="handleNoteDragStart(note, null, $event)"
                         @dragend="handleNoteDragEnd">
-                        <NuxtLink to="/notes/update" class="sidebar__note sidebar__note--flat"
-                            active-class="sidebar__note--active">
+                        <NuxtLink :to="`/notes/update?id=${note.id}`" class="sidebar__note sidebar__note--flat"
+                            :class="{ 'sidebar__note--active': activeNoteId === note.id }">
                             <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
                                 <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
                                     stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
@@ -150,16 +153,16 @@
         <div class="sidebar__user">
 
             <div class="sidebar__avatar">
-                {{ userInitial }}
+                {{ userInitials }}
             </div>
 
             <div class="sidebar__user-meta">
                 <p class="sidebar__user-name">
-                    {{ user.name }}
+                    {{ user?.name }}
                 </p>
 
                 <p class="sidebar__user-email">
-                    {{ user.email }}
+                    {{ user?.email }}
                 </p>
             </div>
 
@@ -168,66 +171,68 @@
     </aside>
 </template>
 <script setup>
-const props = defineProps({
-    folders: {
-        type: Array,
-        default: () => ([
-            {
-                id: 1,
-                name: 'Kerja',
-                notes: [
-                    { id: 1, title: 'Meeting Senin' },
-                    { id: 2, title: 'Target Bulanan' },
-                    { id: 3, title: 'Laporan Progress' },
-                ],
-            },
-            {
-                id: 2,
-                name: 'Pribadi',
-                notes: [
-                    { id: 4, title: 'Belanja Bulanan' },
-                    { id: 5, title: 'Wishlist Laptop' },
-                ],
-            },
-            {
-                id: 3,
-                name: 'Belajar',
-                notes: [
-                    { id: 6, title: 'Nuxt 4' },
-                    { id: 7, title: 'Laravel API' },
-                    { id: 8, title: 'Design Pattern' },
-                ],
-            },
-        ]),
-    },
-    unfiledNotes: {
-        type: Array,
-        default: () => ([
-            { id: 9, title: 'Ide Konten' },
-            { id: 10, title: 'Catatan Rapat' },
-        ]),
-    },
-
-    user: {
-        type: Object,
-        default: () => ({
-            name: 'Ardiansyah',
-            email: 'ardi@folio.app',
-        }),
-    },
-})
-
 const emit = defineEmits(['note-moved'])
 
-const localFolders = ref(
-    props.folders.map(folder => ({
-        ...folder,
-        notes: [...folder.notes],
-        isNew: false,
-        isRenaming: false,
-    }))
-)
-const unfiledNotes = ref([...props.unfiledNotes])
+const route = useRoute()
+const activeNoteId = computed(() => route.path === '/notes/update' ? route.query.id : null)
+
+const { user, fetchUser } = useAuth()
+const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
+const { fetchNotes, moveNote } = useNotes()
+const { version: notesSyncVersion } = useNotesSync()
+
+const localFolders = ref([])
+const unfiledNotes = ref([])
+const isLoadingFolders = ref(false)
+const loadError = ref('')
+
+const loadSidebarData = async () => {
+    isLoadingFolders.value = true
+    loadError.value = ''
+
+    try {
+        const [folders, notesResponse] = await Promise.all([
+            fetchFolders(),
+            fetchNotes(),
+        ])
+
+        const notesByFolder = new Map()
+        const unfiled = []
+
+        for (const note of notesResponse.data) {
+            if (note.folder_id === null || note.folder_id === undefined) {
+                unfiled.push(note)
+                continue
+            }
+            if (!notesByFolder.has(note.folder_id)) notesByFolder.set(note.folder_id, [])
+            notesByFolder.get(note.folder_id).push(note)
+        }
+
+        localFolders.value = folders.map(folder => ({
+            ...folder,
+            notes: notesByFolder.get(folder.id) ?? [],
+            isNew: false,
+            isRenaming: false,
+        }))
+        unfiledNotes.value = unfiled
+    } catch (error) {
+        loadError.value = error?.data?.message || 'Gagal memuat data sidebar.'
+    } finally {
+        isLoadingFolders.value = false
+    }
+}
+
+onMounted(async () => {
+    if (!user.value) {
+        await fetchUser()
+    }
+    await loadSidebarData()
+})
+
+watch(notesSyncVersion, () => {
+    loadSidebarData()
+})
+
 const openedFolders = ref([])
 const openedMenuId = ref(null)
 
@@ -317,7 +322,7 @@ const cancelFolderInput = () => {
     folderInputValue.value = ''
 }
 
-const confirmFolderInput = () => {
+const confirmFolderInput = async () => {
     const name = folderInputValue.value.trim()
 
     if (isCreatingFolder.value) {
@@ -326,9 +331,23 @@ const confirmFolderInput = () => {
 
         if (name === '') {
             localFolders.value.splice(index, 1)
-        } else {
-            localFolders.value[index].name = name
-            localFolders.value[index].isNew = false
+            isCreatingFolder.value = false
+            tempFolderId.value = null
+            folderInputValue.value = ''
+            return
+        }
+
+        try {
+            const created = await createFolder(name)
+            localFolders.value.splice(index, 1, {
+                ...created,
+                notes: [],
+                isNew: false,
+                isRenaming: false,
+            })
+        } catch (error) {
+            localFolders.value.splice(index, 1)
+            alert(error?.data?.errors?.name?.[0] || error?.data?.message || 'Gagal membuat folder.')
         }
 
         isCreatingFolder.value = false
@@ -339,16 +358,25 @@ const confirmFolderInput = () => {
 
     if (renamingFolderId.value !== null) {
         const folder = localFolders.value.find(f => f.id === renamingFolderId.value)
+
         if (folder) {
-            if (name !== '') folder.name = name
+            if (name !== '' && name !== folder.name) {
+                try {
+                    const updated = await updateFolder(folder.id, name)
+                    folder.name = updated.name
+                } catch (error) {
+                    alert(error?.data?.errors?.name?.[0] || error?.data?.message || 'Gagal mengubah nama folder.')
+                }
+            }
             folder.isRenaming = false
         }
+
         renamingFolderId.value = null
         folderInputValue.value = ''
     }
 }
 
-const deleteFolder = (id) => {
+const deleteFolder = async (id) => {
     closeFolderMenu()
 
     const folder = localFolders.value.find(f => f.id === id)
@@ -357,10 +385,15 @@ const deleteFolder = (id) => {
     const confirmed = confirm(`Hapus folder "${folder.name}"? Semua catatan di dalamnya akan ikut terhapus.`)
     if (!confirmed) return
 
-    localFolders.value = localFolders.value.filter(f => f.id !== id)
+    try {
+        await deleteFolderApi(id)
+        localFolders.value = localFolders.value.filter(f => f.id !== id)
 
-    const openedIndex = openedFolders.value.indexOf(id)
-    if (openedIndex > -1) openedFolders.value.splice(openedIndex, 1)
+        const openedIndex = openedFolders.value.indexOf(id)
+        if (openedIndex > -1) openedFolders.value.splice(openedIndex, 1)
+    } catch (error) {
+        alert(error?.data?.message || 'Gagal menghapus folder.')
+    }
 }
 
 const draggedNote = ref(null)
@@ -412,7 +445,21 @@ const handleUnfiledDragLeave = () => {
     isDragOverUnfiled.value = false
 }
 
-const handleFolderDrop = (targetFolderId) => {
+const getFolderNotesRef = (folderId) => {
+    if (folderId === null) return unfiledNotes.value
+    const folder = localFolders.value.find(f => f.id === folderId)
+    return folder ? folder.notes : null
+}
+
+const putNoteBack = (note, folderId) => {
+    const target = getFolderNotesRef(folderId)
+    target?.push(note)
+    if (folderId !== null && !openedFolders.value.includes(folderId)) {
+        openedFolders.value.push(folderId)
+    }
+}
+
+const handleFolderDrop = async (targetFolderId) => {
     dragOverFolderId.value = null
     isDragOverUnfiled.value = false
 
@@ -422,44 +469,28 @@ const handleFolderDrop = (targetFolderId) => {
     draggedNote.value = null
 
     if (sourceFolderId === targetFolderId) return
-    let movedNote = null
 
-    if (sourceFolderId === null) {
-        const index = unfiledNotes.value.findIndex(n => n.id === noteId)
-        if (index === -1) return
-            ;[movedNote] = unfiledNotes.value.splice(index, 1)
-    } else {
-        const sourceFolder = localFolders.value.find(f => f.id === sourceFolderId)
-        if (!sourceFolder) return
-        const index = sourceFolder.notes.findIndex(n => n.id === noteId)
-        if (index === -1) return
-            ;[movedNote] = sourceFolder.notes.splice(index, 1)
+    const sourceList = getFolderNotesRef(sourceFolderId)
+    if (!sourceList) return
+
+    const index = sourceList.findIndex(n => n.id === noteId)
+    if (index === -1) return
+
+    const [movedNote] = sourceList.splice(index, 1)
+    movedNote.folder_id = targetFolderId
+    putNoteBack(movedNote, targetFolderId)
+
+    try {
+        await moveNote(noteId, targetFolderId)
+        emit('note-moved', { noteId, fromFolderId: sourceFolderId, toFolderId: targetFolderId })
+    } catch (error) {
+        const target = getFolderNotesRef(targetFolderId)
+        const revertIndex = target?.findIndex(n => n.id === noteId) ?? -1
+        if (target && revertIndex > -1) target.splice(revertIndex, 1)
+        movedNote.folder_id = sourceFolderId
+        putNoteBack(movedNote, sourceFolderId)
+        alert(error?.data?.message || 'Gagal memindahkan catatan.')
     }
-
-    if (!movedNote) return
-
-    if (targetFolderId === null) {
-        unfiledNotes.value.push(movedNote)
-    } else {
-        const targetFolder = localFolders.value.find(f => f.id === targetFolderId)
-
-        if (!targetFolder) {
-            if (sourceFolderId === null) {
-                unfiledNotes.value.push(movedNote)
-            } else {
-                localFolders.value.find(f => f.id === sourceFolderId)?.notes.push(movedNote)
-            }
-            return
-        }
-
-        targetFolder.notes.push(movedNote)
-
-        if (!openedFolders.value.includes(targetFolderId)) {
-            openedFolders.value.push(targetFolderId)
-        }
-    }
-
-    emit('note-moved', { noteId, fromFolderId: sourceFolderId, toFolderId: targetFolderId })
 }
 
 const totalNotes = computed(() => {
@@ -467,7 +498,16 @@ const totalNotes = computed(() => {
     return inFolders + unfiledNotes.value.length
 })
 
-const userInitial = computed(() => {
-    return props.user.name.charAt(0).toUpperCase()
+const userInitials = computed(() => {
+    const name = user.value?.name?.trim()
+    if (!name) return ''
+
+    const parts = name.split(/\s+/)
+
+    if (parts.length === 1) {
+        return parts[0].charAt(0).toUpperCase()
+    }
+
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
 })
 </script>

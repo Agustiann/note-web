@@ -8,21 +8,28 @@
               <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5" />
               <path d="M17 17l-3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
             </svg>
-            <input type="text" placeholder="Cari catatan..." />
+            <input v-model="search" type="text" placeholder="Cari catatan..." />
           </label>
           <NuxtLink to="/notes/create" class="dashboard__new-btn">
             <span class="sidebar__cta-icon">+</span>
             Catatan Baru
-        </NuxtLink>
+          </NuxtLink>
         </div>
       </header>
 
       <section class="dashboard__group">
         <div class="dashboard__group-header">
           <h2>Semua Catatan</h2>
+          <span v-if="!isLoading">{{ totalAllNotes }} catatan</span>
         </div>
-        <div class="dashboard__group-list">
-          <NuxtLink v-for="note in recent" :key="note.id" to="/notes/update" class="dashboard__note-link">
+
+        <p v-if="loadError" class="update-note__error">{{ loadError }}</p>
+        <p v-else-if="isLoading">Memuat catatan...</p>
+        <p v-else-if="!filteredNotes.length">Belum ada catatan.</p>
+
+        <div v-else class="dashboard__group-list">
+          <NuxtLink v-for="note in filteredNotes" :key="note.id" :to="`/notes/update?id=${note.id}`"
+            class="dashboard__note-link">
             <NoteCard :note="note" />
           </NuxtLink>
         </div>
@@ -34,64 +41,35 @@
 <script setup>
 definePageMeta({ layout: 'default' })
 
-const folderPalette = {
-  kerja: { name: 'Kerja', color: '#7b6ef6', softColor: '#edebfe' },
-  pribadi: { name: 'Pribadi', color: '#2fbf8f', softColor: '#e2f7f0' },
-  belajar: { name: 'Belajar', color: '#ffb020', softColor: '#fff3e0' },
-}
+const { fetchNotes } = useNotes()
 
-const notes = [
-  {
-    id: 1,
-    title: 'Riset kompetitor UI dashboard',
-    content: 'Kumpulkan referensi tampilan dashboard dari beberapa produk sejenis sebelum mulai desain.',
-    updatedAt: '2 jam lalu',
-    folder: folderPalette.kerja,
-    checklists: [
-      { id: 1, title: 'Cari referensi', is_completed: true },
-      { id: 2, title: 'Screenshot tiap referensi', is_completed: true },
-      { id: 3, title: 'Rangkum pola umum', is_completed: false },
-    ],
-    images: [{ id: 1 }, { id: 2 }],
-  },
-  {
-    id: 2,
-    title: 'Checklist belanja bulanan',
-    content: 'Daftar kebutuhan rumah tangga yang harus dibeli sebelum akhir pekan.',
-    updatedAt: 'Kemarin',
-    folder: folderPalette.pribadi,
-    checklists: [
-      { id: 4, title: 'Beras & minyak', is_completed: true },
-      { id: 5, title: 'Sabun cuci', is_completed: false },
-    ],
-    images: [],
-  },
-  {
-    id: 3,
-    title: 'Ringkasan kuliah basis data',
-    content: 'Normalisasi tabel, relasi one-to-many, dan contoh kasus ERD untuk tugas akhir.',
-    updatedAt: '3 hari lalu',
-    folder: folderPalette.belajar,
-    checklists: [
-      { id: 6, title: 'Baca bab 4', is_completed: true },
-      { id: 7, title: 'Kerjakan latihan soal', is_completed: true },
-      { id: 8, title: 'Review dengan kelompok', is_completed: true },
-    ],
-    images: [{ id: 3 }],
-  },
-  {
-    id: 4,
-    title: 'Ide fitur aplikasi Folio',
-    content: 'Tambahkan reminder, label warna folder, dan mode gelap.',
-    updatedAt: '5 hari lalu',
-    folder: folderPalette.kerja,
-    checklists: [],
-    images: [],
-  },
-]
+const notes = ref([])
+const totalAllNotes = ref(0)
+const isLoading = ref(true)
+const loadError = ref('')
+const search = ref('')
 
-const unfinished = computed(() =>
-  notes.filter((n) => n.checklists.some((c) => !c.is_completed))
-)
-const recent = computed(() => [...notes])
+onMounted(async () => {
+  isLoading.value = true
+
+  try {
+    const response = await fetchNotes()
+    notes.value = response.data
+    totalAllNotes.value = response.meta.total_all_notes
+  } catch (error) {
+    loadError.value = error?.data?.message || 'Gagal memuat catatan.'
+  } finally {
+    isLoading.value = false
+  }
+})
+
+const filteredNotes = computed(() => {
+  const keyword = search.value.trim().toLowerCase()
+  if (!keyword) return notes.value
+
+  return notes.value.filter(note =>
+    note.title?.toLowerCase().includes(keyword)
+    || note.content?.toLowerCase().includes(keyword)
+  )
+})
 </script>
