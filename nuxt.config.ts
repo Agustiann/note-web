@@ -1,5 +1,12 @@
 export default defineNuxtConfig({
-  css: ['~/assets/css/main.scss'],
+  css: [
+    '~/assets/css/main.scss',
+    'vue-toastification/dist/index.css',
+  ],
+
+  build: {
+    transpile: ['vue-toastification'],
+  },
 
   runtimeConfig: {
     public: {
@@ -7,5 +14,5 @@ export default defineNuxtConfig({
     }
   },
 
-  modules: ['@nuxt/ui']
+  modules: ['@nuxt/ui'],
 })

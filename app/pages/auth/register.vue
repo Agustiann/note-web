@@ -73,6 +73,7 @@ import { Eye, EyeClosed } from 'lucide-vue-next'
 const { register: registerRequest } = useAuth()
 const { errorMessage, handleApiError } = useApiError()
 
+const toast = useAppToast()
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 const isSubmitting = ref(false)
@@ -124,6 +125,7 @@ async function register() {
             password_confirmation: form.value.confirmPassword,
         })
 
+        toast.success('Registrasi berhasil! Silakan login.')
         navigateTo('/auth/login')
     } catch (error) {
         handleApiError(error)

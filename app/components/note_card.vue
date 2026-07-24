@@ -49,6 +49,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  dateField: {
+    type: String,
+    default: 'updated_at',
+  },
 })
 
 const completedCount = computed(
@@ -66,8 +70,9 @@ const ringStyle = computed(() => ({
 }))
 
 const formattedDate = computed(() => {
-  if (!props.note.updated_at) return ''
-  return new Date(props.note.updated_at).toLocaleDateString('id-ID', {
+  const value = props.note[props.dateField]
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('id-ID', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -75,8 +80,9 @@ const formattedDate = computed(() => {
 })
 
 const formattedTime = computed(() => {
-  if (!props.note.updated_at) return ''
-  return new Date(props.note.updated_at).toLocaleTimeString('id-ID', {
+  const value = props.note[props.dateField]
+  if (!value) return ''
+  return new Date(value).toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
   })
