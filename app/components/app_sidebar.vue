@@ -200,7 +200,8 @@
         <div class="sidebar__user">
             <button type="button" class="sidebar__user-trigger" @click.stop="toggleUserMenu">
                 <div class="sidebar__avatar">
-                    {{ userInitials }}
+                    <img v-if="photoSrc" :src="photoSrc" alt="Foto profil" class="sidebar__avatar-img">
+                    <span v-else>{{ userInitials }}</span>
                 </div>
 
                 <div class="sidebar__user-meta">
@@ -240,7 +241,7 @@ const emit = defineEmits(['note-moved'])
 const route = useRoute()
 const activeNoteId = computed(() => route.path === '/notes/update' ? route.query.id : null)
 
-const { user, fetchUser, logout } = useAuth()
+const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
 const { notifyFoldersChanged } = useFoldersSync()
 const { fetchNotes, moveNote, createNote } = useNotes()
@@ -293,6 +294,9 @@ onMounted(async () => {
     if (!user.value) {
         await fetchUser()
     }
+    if (user.value?.photo) {
+        photoSrc.value = await fetchPhotoBlobUrl(user.value.photo)
+    }
     await loadSidebarData()
 })
 
@@ -303,6 +307,7 @@ watch(notesSyncVersion, () => {
 const openedFolders = ref([])
 const openedMenuId = ref(null)
 const isUserMenuOpen = ref(false)
+const photoSrc = ref(null)
 
 const toggleUserMenu = () => {
     isUserMenuOpen.value = !isUserMenuOpen.value
@@ -365,6 +370,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleClickOutside)
+    if (photoSrc.value) URL.revokeObjectURL(photoSrc.value)
 })
 
 const addFolder = () => {
