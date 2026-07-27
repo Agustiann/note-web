@@ -248,48 +248,58 @@ const { fetchNotes, moveNote, createNote } = useNotes()
 const { version: notesSyncVersion, notifyNotesChanged } = useNotesSync()
 
 const toast = useAppToast()
-const localFolders = ref([])
-const unfiledNotes = ref([])
-const isLoadingFolders = ref(false)
-const loadError = ref('')     
 
-const loadSidebarData = async () => {
-    isLoadingFolders.value = true
-    loadError.value = ''
+const {
+    data: sidebarData,
+    pending: isLoadingFolders,
+    error: sidebarError,
+    refresh: refreshSidebarData,
+} = await useAsyncData('sidebar-data', async () => {
+    const [folders, notesResponse] = await Promise.all([
+        fetchFolders(),
+        fetchNotes(),
+    ])
 
-    try {
-        const [folders, notesResponse] = await Promise.all([
-            fetchFolders(),
-            fetchNotes(),
-        ])
+    const notesByFolder = new Map()
+    const unfiled = []
 
-        const notesByFolder = new Map()
-        const unfiled = []
-
-        for (const note of notesResponse.data.notes) {
-            if (note.folder_id === null || note.folder_id === undefined) {
-                unfiled.push(note)
-                continue
-            }
-            if (!notesByFolder.has(note.folder_id)) notesByFolder.set(note.folder_id, [])
-            notesByFolder.get(note.folder_id).push(note)
+    for (const note of notesResponse.data.notes) {
+        if (note.folder_id === null || note.folder_id === undefined) {
+            unfiled.push(note)
+            continue
         }
-        const byName = (a, b) => a.title.localeCompare(b.title, 'id', { sensitivity: 'base' })
+        if (!notesByFolder.has(note.folder_id)) notesByFolder.set(note.folder_id, [])
+        notesByFolder.get(note.folder_id).push(note)
+    }
+    const byName = (a, b) => a.title.localeCompare(b.title, 'id', { sensitivity: 'base' })
 
-        localFolders.value = folders.map(folder => ({
+    return {
+        folders: folders.map(folder => ({
             ...folder,
             notes: (notesByFolder.get(folder.id) ?? []).sort(byName),
             isNew: false,
             isRenaming: false,
-        }))
-        unfiledNotes.value = unfiled.sort(byName)
-    } catch (error) {
-        loadError.value = error?.data?.message || 'Gagal memuat data.'
-    } finally {
-        isLoadingFolders.value = false
+        })),
+        unfiled: unfiled.sort(byName),
     }
-}
+})
 
+const loadError = computed(() => {
+    if (!sidebarError.value) return ''
+    return sidebarError.value?.data?.message || 'Gagal memuat data.'
+})
+
+const localFolders = ref([])
+const unfiledNotes = ref([])
+
+watch(sidebarData, (value) => {
+    localFolders.value = value?.folders ?? []
+    unfiledNotes.value = value?.unfiled ?? []
+}, { immediate: true })
+
+watch(notesSyncVersion, () => {
+    refreshSidebarData()
+})
 onMounted(async () => {
     if (!user.value) {
         await fetchUser()
@@ -297,11 +307,6 @@ onMounted(async () => {
     if (user.value?.photo) {
         photoSrc.value = await fetchPhotoBlobUrl(user.value.photo)
     }
-    await loadSidebarData()
-})
-
-watch(notesSyncVersion, () => {
-    loadSidebarData()
 })
 
 const openedFolders = ref([])
@@ -536,7 +541,7 @@ const confirmNoteInput = async (folderId) => {
         await createNote({ title, folder_id: folderId })
         notifyNotesChanged()
     } catch (error) {
-        alert(error?.data?.errors?.title?.[0] || error?.data?.message || 'Gagal membuat catatan.')
+        toast.error(error?.data?.errors?.title?.[0] || error?.data?.message || 'Gagal membuat catatan.')
     } finally {
         cancelNoteInput()
     }
@@ -562,7 +567,7 @@ const confirmUnfiledNoteInput = async () => {
         await createNote({ title, folder_id: null })
         notifyNotesChanged()
     } catch (error) {
-        alert(error?.data?.errors?.title?.[0] || error?.data?.message || 'Gagal membuat catatan.')
+        toast.error(error?.data?.errors?.title?.[0] || error?.data?.message || 'Gagal membuat catatan.')
     } finally {
         cancelNoteInput()
     }
@@ -661,7 +666,7 @@ const handleFolderDrop = async (targetFolderId) => {
         if (target && revertIndex > -1) target.splice(revertIndex, 1)
         movedNote.folder_id = sourceFolderId
         putNoteBack(movedNote, sourceFolderId)
-        alert(error?.data?.message || 'Gagal memindahkan catatan.')
+        toast.error(error?.data?.message || 'Gagal memindahkan catatan.')
     }
 }
 

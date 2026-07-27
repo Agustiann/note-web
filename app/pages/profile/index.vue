@@ -1,73 +1,65 @@
 <template>
-    <NuxtLayout>
-        <div class="profile">
-            <header class="profile__header">
-                <h2>Profil</h2>
-            </header>
+    <div class="profile">
+        <header class="profile__header">
+            <h2>Profil</h2>
+        </header>
 
-            <div v-if="isLoading" class="update-note__loading">
-                Memuat profil...
+        <div v-if="isLoading" class="update-note__loading">
+            Memuat profil...
+        </div>
+
+        <div v-else class="profile__body">
+            <div class="profile__card">
+                <div class="profile__avatar">
+                    <img v-if="photoSrc" :src="photoSrc" :alt="user.name" class="profile__avatar-img">
+                    <span v-else>{{ userInitials }}</span>
+                </div>
+
+                <div class="profile__field">
+                    <span class="profile__label">Nama</span>
+                    <span class="profile__value">{{ user?.name }}</span>
+                </div>
+
+                <div class="profile__field">
+                    <span class="profile__label">Email</span>
+                    <span class="profile__value">{{ user?.email }}</span>
+                </div>
+
+                <div class="profile__field">
+                    <span class="profile__label">Bergabung sejak</span>
+                    <span class="profile__value">{{ joinedLabel }}</span>
+                </div>
             </div>
 
-            <div v-else class="profile__body">
-                <div class="profile__card">
-                    <div class="profile__avatar">
-                        <img v-if="photoSrc" :src="photoSrc" :alt="user.name" class="profile__avatar-img">
-                        <span v-else>{{ userInitials }}</span>
-                    </div>
-
-                    <div class="profile__field">
-                        <span class="profile__label">Nama</span>
-                        <span class="profile__value">{{ user?.name }}</span>
-                    </div>
-
-                    <div class="profile__field">
-                        <span class="profile__label">Email</span>
-                        <span class="profile__value">{{ user?.email }}</span>
-                    </div>
-
-                    <div class="profile__field">
-                        <span class="profile__label">Bergabung sejak</span>
-                        <span class="profile__value">{{ joinedLabel }}</span>
-                    </div>
-                </div>
-
-                <div class="profile__actions">
-                    <NuxtLink to="/profile/update" class="profile__edit-btn">
-                        <Pencil :size="16" />
-                        Edit Profil
-                    </NuxtLink>
-                    <button type="button" class="profile__logout-btn" @click="handleLogout">
-                        <LogOut :size="16" />
-                        Logout
-                    </button>
-                </div>
+            <div class="profile__actions">
+                <NuxtLink to="/profile/update" class="profile__edit-btn">
+                    <Pencil :size="16" />
+                    Edit Profil
+                </NuxtLink>
+                <button type="button" class="profile__logout-btn" @click="handleLogout">
+                    <LogOut :size="16" />
+                    Logout
+                </button>
             </div>
         </div>
-    </NuxtLayout>
+    </div>
 </template>
 
 <script setup>
-import { Pencil, LogOut } from 'lucide-vue-next'
-
 definePageMeta({ layout: 'default' })
+
+import { Pencil, LogOut } from 'lucide-vue-next'
 
 const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 
-const isLoading = ref(true)
-const photoSrc = ref(null)
-
-onMounted(async () => {
-    try {
-        if (!user.value) {
-            await fetchUser()
-        }
-        if (user.value?.photo) {
-            photoSrc.value = await fetchPhotoBlobUrl(user.value.photo)
-        }
-    } finally {
-        isLoading.value = false
+const { data: photoSrc, pending: isLoading } = await useAsyncData('profile-data', async () => {
+    if (!user.value) {
+        await fetchUser()
     }
+    if (user.value?.photo) {
+        return await fetchPhotoBlobUrl(user.value.photo)
+    }
+    return null
 })
 
 onBeforeUnmount(() => {
@@ -96,6 +88,6 @@ const joinedLabel = computed(() => {
 
 const handleLogout = async () => {
     await logout()
-    navigateTo('/auth/login')
+    await navigateTo('/auth/login')
 }
 </script>

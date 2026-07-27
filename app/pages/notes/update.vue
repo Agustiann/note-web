@@ -1,58 +1,59 @@
 <template>
-    <NuxtLayout>
-        <div class="update-note">
+    <div class="update-note">
 
-            <div class="update-note__header">
-                <span class="update-note__last-updated">{{ saveStatusLabel }}</span>
-                <div class="update-note__header-actions">
-                    <button class="update-note__delete" type="button" @click="handleDelete">
-                        Hapus
-                    </button>
-                </div>
+        <div class="update-note__header">
+            <span class="update-note__last-updated">{{ saveStatusLabel }}</span>
+            <div class="update-note__header-actions">
+                <button class="update-note__delete" type="button" @click="handleDelete">
+                    Hapus
+                </button>
+            </div>
+        </div>
+
+        <div v-if="isLoading" class="update-note__loading">
+            Memuat catatan...
+        </div>
+
+        <div v-else class="update-note__card">
+
+            <div class="update-note__meta">
+                <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders" />
             </div>
 
-            <div v-if="isLoading" class="update-note__loading">
-                Memuat catatan...
+            <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan..."
+                @blur="handleTitleBlur">
+
+            <NoteImageSection :images="form.images" :max-images="MAX_IMAGES" :max-size-label="MAX_IMAGE_SIZE_LABEL"
+                :error="imageError" @select-files="handleImageSelected" @remove="removeImage" />
+
+            <div class="update-note__section">
+                <textarea id="note-content" v-model="form.content" class="update-note__textarea" rows="6"
+                    placeholder="Tulis catatan di sini..." />
             </div>
 
-            <div v-else class="update-note__card">
+            <NoteChecklistSection ref="checklistSectionRef" :items="form.checklist"
+                hint="Checklist tersimpan otomatis saat kamu mengisi teksnya." :error="checklistError"
+                @enter="handleChecklistEnter" @blur="syncChecklistContent" @toggle="toggleChecklistItem"
+                @remove="removeChecklistItem" />
 
-                <div class="update-note__meta">
-                    <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders" />
-                </div>
-
-                <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan..."
-                    @blur="handleTitleBlur">
-
-                <NoteImageSection :images="form.images" :max-images="MAX_IMAGES" :max-size-label="MAX_IMAGE_SIZE_LABEL"
-                    :error="imageError" @select-files="handleImageSelected" @remove="removeImage" />
-
-                <div class="update-note__section">
-                    <textarea id="note-content" v-model="form.content" class="update-note__textarea" rows="6"
-                        placeholder="Tulis catatan di sini..." />
-                </div>
-
-                <NoteChecklistSection ref="checklistSectionRef" :items="form.checklist"
-                    hint="Checklist tersimpan otomatis saat kamu mengisi teksnya." :error="checklistError"
-                    @enter="handleChecklistEnter" @blur="syncChecklistContent" @toggle="toggleChecklistItem"
-                    @remove="removeChecklistItem" />
-
-                <div class="update-note__footer">
-                    <span v-if="saveError" class="update-note__error">
-                        {{ saveError }}
-                    </span>
-                </div>
-
+            <div class="update-note__footer">
+                <span v-if="saveError" class="update-note__error">
+                    {{ saveError }}
+                </span>
             </div>
 
         </div>
-    </NuxtLayout>
+
+    </div>
 </template>
 
 <script setup>
+definePageMeta({ layout: 'default' })
+
 const router = useRouter()
 const route = useRoute()
 const noteId = computed(() => route.query.id)
+const toast = useAppToast()
 
 const { fetchFolders } = useFolders()
 const { version: foldersSyncVersion } = useFoldersSync()
@@ -116,6 +117,14 @@ onBeforeUnmount(() => {
     clearTimeout(saveTimer)
 })
 
+const refreshFolders = async () => {
+    try {
+        folders.value = await fetchFolders()
+    } catch (error) {
+        toast.error(error?.data?.message || 'Gagal memuat daftar folder.')
+    }
+}
+
 const loadNote = async (id) => {
     if (!id) {
         saveError.value = 'Catatan tidak ditemukan.'
@@ -166,12 +175,7 @@ watch(noteId, (id) => {
     loadNote(id)
 }, { immediate: true })
 
-watch(foldersSyncVersion, async () => {
-    try {
-        folders.value = await fetchFolders()
-    } catch (error) {
-    }
-})
+watch(foldersSyncVersion, refreshFolders)
 
 let saveTimer = null
 
@@ -310,21 +314,28 @@ const handleImageSelected = async (fileList) => {
             : `Maksimal ${MAX_IMAGES} gambar`
     }
 
-    const filesToProcess = files.slice(0, remainingSlots)
-
-    for (const file of filesToProcess) {
+    const filesToProcess = files.slice(0, remainingSlots).filter((file) => {
         if (!file.type.startsWith('image/')) {
             imageError.value = `${file.name} bukan file gambar`
-            continue
+            return false
         }
-
         if (file.size > MAX_IMAGE_SIZE) {
             imageError.value = `${file.name} melebihi batas ${MAX_IMAGE_SIZE_LABEL}`
-            continue
+            return false
         }
+        return true
+    })
 
-        try {
-            const uploaded = await uploadImage(noteId.value, file)
+    const results = await Promise.allSettled(
+        filesToProcess.map((file) => uploadImage(noteId.value, file))
+    )
+
+    const failedNames = []
+
+    results.forEach((result, i) => {
+        const file = filesToProcess[i]
+        if (result.status === 'fulfilled') {
+            const uploaded = result.value
             const entry = {
                 id: uploaded.id,
                 name: uploaded.file_name,
@@ -334,9 +345,13 @@ const handleImageSelected = async (fileList) => {
             }
             form.images.push(entry)
             loadImagePreviews([entry])
-        } catch (error) {
-            imageError.value = error?.data?.message || `Gagal mengunggah ${file.name}`
+        } else {
+            failedNames.push(file.name)
         }
+    })
+
+    if (failedNames.length) {
+        imageError.value = `Gagal mengunggah: ${failedNames.join(', ')}`
     }
 }
 
@@ -357,15 +372,17 @@ const removeImage = async (id) => {
 }
 
 const handleDelete = async () => {
-    const confirmed = confirm('Hapus catatan ini? Tindakan ini tidak bisa dibatalkan.')
+    const confirmed = await useConfirmDelete('Catatan ini', 'Tindakan ini tidak bisa dibatalkan.')
     if (!confirmed) return
 
     try {
         await deleteNote(noteId.value)
         notifyNotesChanged()
+        toast.success('Catatan berhasil dihapus')
         router.push('/notes')
     } catch (error) {
         saveError.value = error?.data?.message || 'Gagal menghapus catatan.'
+        toast.error(saveError.value)
     }
 }
 </script>
