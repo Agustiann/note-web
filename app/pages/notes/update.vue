@@ -3,12 +3,10 @@
         <div class="update-note">
 
             <div class="update-note__header">
+                <span class="update-note__last-updated">{{ saveStatusLabel }}</span>
                 <div class="update-note__header-actions">
                     <button class="update-note__delete" type="button" @click="handleDelete">
                         Hapus
-                    </button>
-                    <button class="update-note__save" type="button" :disabled="isSaving" @click="handleSave">
-                        {{ isSaving ? 'Menyimpan...' : 'Simpan Perubahan' }}
                     </button>
                 </div>
             </div>
@@ -23,7 +21,8 @@
                     <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders" />
                 </div>
 
-                <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan...">
+                <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan..."
+                    @blur="handleTitleBlur">
 
                 <NoteImageSection :images="form.images" :max-images="MAX_IMAGES" :max-size-label="MAX_IMAGE_SIZE_LABEL"
                     :error="imageError" @select-files="handleImageSelected" @remove="removeImage" />
@@ -39,9 +38,6 @@
                     @remove="removeChecklistItem" />
 
                 <div class="update-note__footer">
-                    <span class="update-note__last-updated">
-                        Terakhir diubah: {{ lastUpdatedLabel }}
-                    </span>
                     <span v-if="saveError" class="update-note__error">
                         {{ saveError }}
                     </span>
@@ -82,12 +78,19 @@ const saveError = ref('')
 const imageError = ref('')
 const checklistError = ref('')
 const lastUpdated = ref(new Date())
+const lastSavedTitle = ref('')
 
 const lastUpdatedLabel = computed(() => {
     return new Intl.DateTimeFormat('id-ID', {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(lastUpdated.value)
+})
+
+const saveStatusLabel = computed(() => {
+    if (isSaving.value) return 'Menyimpan...'
+    if (saveError.value) return 'Gagal menyimpan'
+    return `Tersimpan · ${lastUpdatedLabel.value}`
 })
 
 const isTempId = (id) => typeof id === 'string' && id.startsWith('tmp-')
@@ -110,6 +113,7 @@ const revokeImagePreviews = () => {
 
 onBeforeUnmount(() => {
     revokeImagePreviews()
+    clearTimeout(saveTimer)
 })
 
 const loadNote = async (id) => {
@@ -150,10 +154,11 @@ const loadNote = async (id) => {
         }))
         loadImagePreviews(form.images)
         lastUpdated.value = new Date(note.updated_at)
+        lastSavedTitle.value = note.title
     } catch (error) {
         saveError.value = error?.data?.message || 'Gagal memuat catatan.'
     } finally {
-        isLoading.value = false
+        nextTick(() => { isLoading.value = false })
     }
 }
 
@@ -168,6 +173,57 @@ watch(foldersSyncVersion, async () => {
     }
 })
 
+let saveTimer = null
+
+const performSave = async () => {
+    if (!form.title.trim()) {
+        saveError.value = 'Judul catatan tidak boleh kosong'
+        return
+    }
+
+    saveError.value = ''
+    isSaving.value = true
+
+    try {
+        const updated = await updateNote(noteId.value, {
+            title: form.title.trim(),
+            content: form.content?.trim() || null,
+            folder_id: form.folderId,
+        })
+        lastUpdated.value = new Date(updated.updated_at)
+        lastSavedTitle.value = updated.title
+        notifyNotesChanged()
+    } catch (error) {
+        saveError.value = error?.data?.errors?.title?.[0]
+            || error?.data?.message
+            || 'Gagal menyimpan perubahan, coba lagi'
+    } finally {
+        isSaving.value = false
+    }
+}
+
+const scheduleSave = () => {
+    if (isLoading.value) return
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(performSave, 800)
+}
+
+watch(() => form.title, scheduleSave)
+watch(() => form.content, scheduleSave)
+
+watch(() => form.folderId, () => {
+    if (isLoading.value) return
+    clearTimeout(saveTimer)
+    performSave()
+})
+
+const handleTitleBlur = () => {
+    if (form.title.trim()) return
+    clearTimeout(saveTimer)
+    form.title = lastSavedTitle.value
+    saveError.value = ''
+}
+
 const handleChecklistEnter = (item) => {
     if (!item.content.trim()) return
     syncChecklistContent(item)
@@ -175,6 +231,8 @@ const handleChecklistEnter = (item) => {
 }
 
 const syncChecklistContent = async (item) => {
+    if (item.isSaving || item.isDeleting) return
+
     const content = item.content.trim()
 
     if (!content) {
@@ -295,32 +353,6 @@ const removeImage = async (id) => {
     } catch (error) {
         image.isDeleting = false
         imageError.value = error?.data?.message || 'Gagal menghapus gambar.'
-    }
-}
-
-const handleSave = async () => {
-    if (!form.title.trim()) {
-        saveError.value = 'Judul catatan tidak boleh kosong'
-        return
-    }
-
-    saveError.value = ''
-    isSaving.value = true
-
-    try {
-        const updated = await updateNote(noteId.value, {
-            title: form.title.trim(),
-            content: form.content?.trim() || null,
-            folder_id: form.folderId,
-        })
-        lastUpdated.value = new Date(updated.updated_at)
-        notifyNotesChanged()
-    } catch (error) {
-        saveError.value = error?.data?.errors?.title?.[0]
-            || error?.data?.message
-            || 'Gagal menyimpan perubahan, coba lagi'
-    } finally {
-        isSaving.value = false
     }
 }
 

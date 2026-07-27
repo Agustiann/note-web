@@ -52,8 +52,11 @@ const trigger = () => {
 }
 
 const onChange = (e) => {
+    console.log(typeof(e))
+    console.log(e.target.files)
     const files = e.target.files
-    e.target.value = ''
+    // e.target.value = ''
+    console.log(files)
     if (files && files.length) emit('select-files', files)
 }
 </script>

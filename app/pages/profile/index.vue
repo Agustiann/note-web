@@ -95,9 +95,6 @@ const joinedLabel = computed(() => {
 })
 
 const handleLogout = async () => {
-    const confirmed = confirm('Yakin ingin logout?')
-    if (!confirmed) return
-
     await logout()
     navigateTo('/auth/login')
 }

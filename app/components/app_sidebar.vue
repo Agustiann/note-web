@@ -251,7 +251,7 @@ const toast = useAppToast()
 const localFolders = ref([])
 const unfiledNotes = ref([])
 const isLoadingFolders = ref(false)
-const loadError = ref('')
+const loadError = ref('')     
 
 const loadSidebarData = async () => {
     isLoadingFolders.value = true

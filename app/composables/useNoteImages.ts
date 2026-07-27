@@ -2,7 +2,6 @@ interface NoteImage {
   id: string
   file_name: string
   url: string
-  file_size: number | null
   mime_type: string
   created_at: string
 }
