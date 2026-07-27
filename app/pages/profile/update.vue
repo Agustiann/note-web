@@ -81,6 +81,7 @@
 
 <script setup>
 definePageMeta({ layout: 'default' })
+useHead({ title: 'Update · Profile' })
 
 import '~/assets/css/login.scss'
 import { Eye, EyeClosed, Pencil } from 'lucide-vue-next'
@@ -107,19 +108,21 @@ const form = reactive({
     confirmPassword: '',
 })
 
-const { data: initialAvatar } = await useAsyncData('profile-update-data', async () => {
+await useAsyncData('profile-update-data', async () => {
     if (!user.value) {
         await fetchUser()
     }
     form.name = user.value?.name ?? ''
-
-    if (user.value?.photo) {
-        return await fetchPhotoBlobUrl(user.value.photo)
-    }
-    return null
+    return true
 })
 
-const avatarPreview = ref(initialAvatar.value)
+const avatarPreview = ref(null)
+
+onMounted(async () => {
+    if (user.value?.photo) {
+        avatarPreview.value = await fetchPhotoBlobUrl(user.value.photo)
+    }
+})
 
 onBeforeUnmount(() => {
     if (avatarPreview.value && avatarPreview.value.startsWith('blob:')) {

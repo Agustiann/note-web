@@ -80,7 +80,7 @@
                                 </svg>
 
                                 <template v-if="folder.isNew || folder.isRenaming">
-                                    <input :id="folder.isNew ? 'new-folder-input' : `rename-folder-${folder.id}`"
+                                    <input :ref="(el) => setFolderInputRef(el, folder.id)"
                                         v-model="folderInputValue" class="sidebar__folder-input"
                                         placeholder="Nama folder..." @click.stop @keyup.enter="confirmFolderInput"
                                         @keyup.esc="cancelFolderInput" @blur="confirmFolderInput">
@@ -93,7 +93,8 @@
                                 </template>
                             </button>
 
-                            <div v-if="!folder.isNew && !folder.isRenaming" class="sidebar__folder-menu">
+                            <div v-if="!folder.isNew && !folder.isRenaming" :ref="(el) => setFolderMenuRef(el, folder.id)"
+                                class="sidebar__folder-menu">
                                 <button class="sidebar__folder-menu-trigger" type="button" aria-label="Opsi folder"
                                     @click.stop="toggleFolderMenu(folder.id)">
                                     <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
@@ -154,7 +155,7 @@
                                             <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
                                                 stroke-linejoin="round" />
                                         </svg>
-                                        <input id="new-note-input" v-model="noteInputValue" class="sidebar__note-input"
+                                        <input ref="noteInputRef" v-model="noteInputValue" class="sidebar__note-input"
                                             placeholder="Judul catatan..." @click.stop
                                             @keyup.enter="confirmNoteInput(folder.id)" @keyup.esc="cancelNoteInput"
                                             @blur="confirmNoteInput(folder.id)">
@@ -186,7 +187,7 @@
                                     stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
                                 <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
                             </svg>
-                            <input id="new-unfiled-note-input" v-model="noteInputValue" class="sidebar__note-input"
+                            <input ref="unfiledNoteInputRef" v-model="noteInputValue" class="sidebar__note-input"
                                 placeholder="Judul catatan..." @click.stop @keyup.enter="confirmUnfiledNoteInput"
                                 @keyup.esc="cancelNoteInput" @blur="confirmUnfiledNoteInput">
                         </div>
@@ -197,7 +198,7 @@
 
         </div>
 
-        <div class="sidebar__user">
+        <div class="sidebar__user" ref="userMenuRef">
             <button type="button" class="sidebar__user-trigger" @click.stop="toggleUserMenu">
                 <div class="sidebar__avatar">
                     <img v-if="photoSrc" :src="photoSrc" alt="Foto profil" class="sidebar__avatar-img">
@@ -236,10 +237,13 @@
     </aside>
 </template>
 <script setup>
+// Kalau modul @vueuse/nuxt sudah terpasang, import ini bisa dihapus (auto-import).
+import { onClickOutside } from '@vueuse/core'
+
 const emit = defineEmits(['note-moved'])
 
 const route = useRoute()
-const activeNoteId = computed(() => route.path === '/notes/update' ? route.query.id : null)
+const activeNoteId = computed(() => route.params.id ?? null)
 
 const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
@@ -251,7 +255,6 @@ const toast = useAppToast()
 
 const {
     data: sidebarData,
-    pending: isLoadingFolders,
     error: sidebarError,
     refresh: refreshSidebarData,
 } = await useAsyncData('sidebar-data', async () => {
@@ -314,6 +317,25 @@ const openedMenuId = ref(null)
 const isUserMenuOpen = ref(false)
 const photoSrc = ref(null)
 
+const userMenuRef = ref(null)
+const noteInputRef = ref(null)
+const unfiledNoteInputRef = ref(null)
+
+const folderInputRefs = new Map()
+const setFolderInputRef = (el, id) => {
+    if (el) folderInputRefs.set(id, el)
+    else folderInputRefs.delete(id)
+}
+const focusFolderInput = (id) => {
+    nextTick(() => folderInputRefs.get(id)?.focus())
+}
+
+const folderMenuRefs = new Map()
+const setFolderMenuRef = (el, id) => {
+    if (el) folderMenuRefs.set(id, el)
+    else folderMenuRefs.delete(id)
+}
+
 const toggleUserMenu = () => {
     isUserMenuOpen.value = !isUserMenuOpen.value
 }
@@ -360,21 +382,10 @@ const closeFolderMenu = () => {
     openedMenuId.value = null
 }
 
-const handleClickOutside = (e) => {
-    if (!e.target.closest('.sidebar__folder-menu')) {
-        closeFolderMenu()
-    }
-    if (!e.target.closest('.sidebar__user')) {
-        closeUserMenu()
-    }
-}
-
-onMounted(() => {
-    document.addEventListener('click', handleClickOutside)
-})
+onClickOutside(userMenuRef, closeUserMenu)
+onClickOutside(() => folderMenuRefs.get(openedMenuId.value), closeFolderMenu)
 
 onBeforeUnmount(() => {
-    document.removeEventListener('click', handleClickOutside)
     if (photoSrc.value) URL.revokeObjectURL(photoSrc.value)
 })
 
@@ -394,9 +405,7 @@ const addFolder = () => {
 
     isCreatingFolder.value = true
 
-    nextTick(() => {
-        document.getElementById('new-folder-input')?.focus()
-    })
+    focusFolderInput(tempFolderId.value)
 }
 
 const startRenameFolder = (folder) => {
@@ -405,9 +414,7 @@ const startRenameFolder = (folder) => {
     folderInputValue.value = folder.name
     folder.isRenaming = true
 
-    nextTick(() => {
-        document.getElementById(`rename-folder-${folder.id}`)?.focus()
-    })
+    focusFolderInput(folder.id)
 }
 
 const cancelFolderInput = () => {
@@ -520,7 +527,7 @@ const startAddNote = (folder) => {
     creatingNoteFolderId.value = folder.id
     noteInputValue.value = ''
     nextTick(() => {
-        document.getElementById('new-note-input')?.focus()
+        noteInputRef.value?.focus()
     })
 }
 
@@ -552,7 +559,7 @@ const startAddUnfiledNote = () => {
     isAddingUnfiledNote.value = true
     noteInputValue.value = ''
     nextTick(() => {
-        document.getElementById('new-unfiled-note-input')?.focus()
+        unfiledNoteInputRef.value?.focus()
     })
 }
 

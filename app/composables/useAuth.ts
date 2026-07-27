@@ -40,6 +40,8 @@ export const useAuth = () => {
   const user = useState<AuthUser | null>('auth_user', () => null)
 
   const login = async (email: string, password: string) => {
+    clearNuxtData()
+    
     const response = await api<LoginResponse>('/auth/login', {
       method: 'POST',
       body: { email, password },
@@ -65,6 +67,7 @@ export const useAuth = () => {
     } finally {
       token.value = null
       user.value = null
+      clearNuxtData()
     }
   }
 
@@ -98,7 +101,7 @@ export const useAuth = () => {
   }
   
   const fetchPhotoBlobUrl = async (photoUrl: string) => {
-    const blob = await api<Blob>(photoUrl, { responseType: 'blob' })
+    const blob = await api<Blob>(photoUrl, { responseType: 'blob', cache: 'no-store' })
     return URL.createObjectURL(blob)
   }
 

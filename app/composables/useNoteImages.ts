@@ -44,7 +44,7 @@ export const useNoteImages = () => {
   }
 
   const fetchImageBlobUrl = async (url: string) => {
-    const blob = await api<Blob>(url, { responseType: 'blob' })
+    const blob = await api<Blob>(url, { responseType: 'blob', cache: 'no-store' })
     return URL.createObjectURL(blob)
   }
 

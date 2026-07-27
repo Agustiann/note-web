@@ -38,6 +38,7 @@
 
 <script setup>
 definePageMeta({ layout: 'default' })
+useHead({ title: 'All · Notes' })
 
 const { fetchNotes } = useNotes()
 const { version: notesSyncVersion } = useNotesSync()

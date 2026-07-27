@@ -47,19 +47,25 @@
 
 <script setup>
 definePageMeta({ layout: 'default' })
+useHead({ title: 'Profile' })
 
 import { Pencil, LogOut } from 'lucide-vue-next'
 
 const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 
-const { data: photoSrc, pending: isLoading } = await useAsyncData('profile-data', async () => {
+const { pending: isLoading } = await useAsyncData('profile-data', async () => {
     if (!user.value) {
         await fetchUser()
     }
+    return true
+})
+
+const photoSrc = ref(null)
+
+onMounted(async () => {
     if (user.value?.photo) {
-        return await fetchPhotoBlobUrl(user.value.photo)
+        photoSrc.value = await fetchPhotoBlobUrl(user.value.photo)
     }
-    return null
 })
 
 onBeforeUnmount(() => {

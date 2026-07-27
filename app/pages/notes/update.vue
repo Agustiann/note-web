@@ -14,6 +14,8 @@
             Memuat catatan...
         </div>
 
+        <p v-else-if="loadError" class="update-note__error">{{ loadError }}</p>
+
         <div v-else class="update-note__card">
 
             <div class="update-note__meta">
@@ -49,9 +51,11 @@
 
 <script setup>
 definePageMeta({ layout: 'default' })
+useHead({ title: 'Update · Notes' })
 
 const router = useRouter()
 const route = useRoute()
+
 const noteId = computed(() => route.query.id)
 const toast = useAppToast()
 
@@ -62,7 +66,6 @@ const { uploadImage, deleteImage, fetchImageBlobUrl } = useNoteImages()
 const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNoteChecklists()
 const { notifyNotesChanged } = useNotesSync()
 
-const folders = ref([])
 const checklistSectionRef = ref(null)
 
 const form = reactive({
@@ -73,7 +76,6 @@ const form = reactive({
     images: [],
 })
 
-const isLoading = ref(true)
 const isSaving = ref(false)
 const saveError = ref('')
 const imageError = ref('')
@@ -81,20 +83,29 @@ const checklistError = ref('')
 const lastUpdated = ref(new Date())
 const lastSavedTitle = ref('')
 
-const lastUpdatedLabel = computed(() => {
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(lastUpdated.value)
-})
+const {
+    data: pageData,
+    pending: isLoading,
+    error: loadErrorRaw,
+    refresh: refreshNote,
+} = await useAsyncData(
+    () => `note-${noteId.value}`,
+    async () => {
+        const [note, folderList] = await Promise.all([
+            fetchNote(noteId.value),
+            fetchFolders(),
+        ])
+        return { note, folders: folderList }
+    },
+    { watch: [noteId] }
+)
 
-const saveStatusLabel = computed(() => {
-    if (isSaving.value) return 'Menyimpan...'
-    if (saveError.value) return 'Gagal menyimpan'
-    return `Tersimpan · ${lastUpdatedLabel.value}`
-})
+const folders = computed(() => pageData.value?.folders ?? [])
 
-const isTempId = (id) => typeof id === 'string' && id.startsWith('tmp-')
+const loadError = computed(() => {
+    if (!loadErrorRaw.value) return ''
+    return loadErrorRaw.value?.data?.message || 'Gagal memuat catatan.'
+})
 
 const loadImagePreviews = (images) => {
     for (const image of images) {
@@ -112,70 +123,56 @@ const revokeImagePreviews = () => {
     }
 }
 
+watch(pageData, (value) => {
+    const note = value?.note
+    if (!note) return
+
+    form.title = note.title
+    form.folderId = note.folder_id
+    form.content = note.content ?? ''
+    revokeImagePreviews()
+    form.checklist = (note.checklists ?? []).map(item => ({
+        id: item.id,
+        content: item.content,
+        isCompleted: item.is_completed,
+        isSaving: false,
+        isDeleting: false,
+    }))
+    form.images = (note.images ?? []).map(image => ({
+        id: image.id,
+        name: image.file_name ?? '',
+        url: image.url,
+        src: null,
+        isDeleting: false,
+    }))
+    loadImagePreviews(form.images)
+    lastUpdated.value = new Date(note.updated_at)
+    lastSavedTitle.value = note.title
+}, { immediate: true })
+
 onBeforeUnmount(() => {
     revokeImagePreviews()
     clearTimeout(saveTimer)
 })
 
-const refreshFolders = async () => {
-    try {
-        folders.value = await fetchFolders()
-    } catch (error) {
-        toast.error(error?.data?.message || 'Gagal memuat daftar folder.')
-    }
-}
+watch(foldersSyncVersion, refreshNote)
 
-const loadNote = async (id) => {
-    if (!id) {
-        saveError.value = 'Catatan tidak ditemukan.'
-        isLoading.value = false
-        return
-    }
+useHead({ title: computed(() => form.title ? `${form.title} · Notes` : 'Catatan') })
 
-    isLoading.value = true
-    saveError.value = ''
+const lastUpdatedLabel = computed(() => {
+    return new Intl.DateTimeFormat('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(lastUpdated.value)
+})
 
-    try {
-        const [note, folderList] = await Promise.all([
-            fetchNote(id),
-            fetchFolders(),
-        ])
+const saveStatusLabel = computed(() => {
+    if (isSaving.value) return 'Menyimpan...'
+    if (saveError.value) return 'Gagal menyimpan'
+    return `Tersimpan · ${lastUpdatedLabel.value}`
+})
 
-        folders.value = folderList
-
-        form.title = note.title
-        form.folderId = note.folder_id
-        form.content = note.content ?? ''
-        revokeImagePreviews()
-        form.checklist = (note.checklists ?? []).map(item => ({
-            id: item.id,
-            content: item.content,
-            isCompleted: item.is_completed,
-            isSaving: false,
-            isDeleting: false,
-        }))
-        form.images = (note.images ?? []).map(image => ({
-            id: image.id,
-            name: image.file_name ?? '',
-            url: image.url,
-            src: null,
-            isDeleting: false,
-        }))
-        loadImagePreviews(form.images)
-        lastUpdated.value = new Date(note.updated_at)
-        lastSavedTitle.value = note.title
-    } catch (error) {
-        saveError.value = error?.data?.message || 'Gagal memuat catatan.'
-    } finally {
-        nextTick(() => { isLoading.value = false })
-    }
-}
-
-watch(noteId, (id) => {
-    loadNote(id)
-}, { immediate: true })
-
-watch(foldersSyncVersion, refreshFolders)
+const isTempId = (id) => typeof id === 'string' && id.startsWith('tmp-')
 
 let saveTimer = null
 

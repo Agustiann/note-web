@@ -40,6 +40,8 @@
 <script setup>
 definePageMeta({ layout: 'default' })
 
+useHead({ title: 'Dashboard · Notes' })
+
 const { fetchNotes } = useNotes()
 const { fetchFolders } = useFolders()
 

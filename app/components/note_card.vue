@@ -1,9 +1,5 @@
 <template>
   <article class="note-card">
-    <div v-if="note.checklists?.length" class="note-card__ring" :style="ringStyle">
-      <span>{{ progressPercent }}%</span>
-    </div>
-
     <div class="note-card__body">
       <div class="note-card__top">
         <h3 class="note-card__title">{{ note.title }}</h3>
@@ -58,16 +54,6 @@ const props = defineProps({
 const completedCount = computed(
   () => props.note.checklists?.filter((c) => c.is_completed).length ?? 0
 )
-
-const progressPercent = computed(() => {
-  const total = props.note.checklists?.length ?? 0
-  if (!total) return 0
-  return Math.round((completedCount.value / total) * 100)
-})
-
-const ringStyle = computed(() => ({
-  background: `conic-gradient(var(--color-accent) ${progressPercent.value}%, var(--color-border) 0)`,
-}))
 
 const formattedDate = computed(() => {
   const value = props.note[props.dateField]

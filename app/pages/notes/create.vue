@@ -51,6 +51,7 @@
 
 <script setup>
 definePageMeta({ layout: 'default' })
+useHead({ title: 'Create · Notes' })
 
 const router = useRouter()
 const toast = useAppToast()
