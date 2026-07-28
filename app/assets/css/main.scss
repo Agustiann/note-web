@@ -285,8 +285,12 @@ ul {
         border-radius: var(--radius-sm);
         transition: background 0.15s ease, box-shadow 0.15s ease;
 
-        &:hover,
-        &:focus-within {
+        // Style invert warna (bg biru, teks/ikon krem) khusus untuk :hover.
+        // Sengaja TIDAK termasuk :focus-within: input nama folder ada di
+        // dalam row ini, jadi kalau :focus-within ikut dipasang di sini,
+        // baris akan "kedip" berubah ke gaya hover setiap kali user lagi
+        // mengetik nama folder (baru/rename) -- bukan itu yang diinginkan.
+        &:hover {
             background: var(--color-sidebar-hover);
 
             .sidebar__folder,
@@ -495,6 +499,10 @@ ul {
         &::placeholder {
             color: var(--color-ink-soft);
         }
+    }
+
+    &__folder-row:has(&__folder-input) {
+        box-shadow: inset 0 0 0 1px var(--color-accent-soft);
     }
 
     .drag-preview {

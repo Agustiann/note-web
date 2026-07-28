@@ -77,8 +77,6 @@ const isSaving = ref(false)
 const saveError = ref('')
 const imageError = ref('')
 
-const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
 const removeChecklistItem = (id) => {
     form.checklist = form.checklist.filter(item => item.id !== id)
 }
@@ -115,7 +113,7 @@ const handleImageSelected = (fileList) => {
         }
 
         form.images.push({
-            id: createId(),
+            id: useTempId(),
             name: file.name,
             src: URL.createObjectURL(file),
             file,

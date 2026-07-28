@@ -9,43 +9,43 @@
         {{ errorMessage }}
     </div>
 
-    <form novalidate @submit.prevent="register">
-        <div class="form-group" :class="{ error: fieldErrors.name }">
+    <form novalidate @submit.prevent="onSubmit">
+        <div class="form-group" :class="{ error: errors.name }">
             <label>Nama Lengkap</label>
-            <input v-model="form.name" type="text" placeholder="Masukkan nama lengkap">
-            <span class="error-text" :class="{ 'is-visible': fieldErrors.name }">{{ fieldErrors.name }}</span>
+            <input v-model="name" type="text" placeholder="Masukkan nama lengkap">
+            <span class="error-text" :class="{ 'is-visible': errors.name }">{{ errors.name }}</span>
         </div>
 
-        <div class="form-group" :class="{ error: fieldErrors.email }">
+        <div class="form-group" :class="{ error: errors.email }">
             <label>Email</label>
-            <input v-model="form.email" type="email" placeholder="Masukkan email">
-            <span class="error-text" :class="{ 'is-visible': fieldErrors.email }">{{ fieldErrors.email }}</span>
+            <input v-model="email" type="email" placeholder="Masukkan email">
+            <span class="error-text" :class="{ 'is-visible': errors.email }">{{ errors.email }}</span>
         </div>
 
-        <div class="form-group" :class="{ error: fieldErrors.password }">
+        <div class="form-group" :class="{ error: errors.password }">
             <label>Password</label>
             <div class="password-input">
-                <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
+                <input v-model="password" :type="showPassword ? 'text' : 'password'"
                     placeholder="Masukkan password">
                 <button type="button" class="toggle-password" @click="showPassword = !showPassword">
                     <Eye v-if="!showPassword" :size="20" />
                     <EyeClosed v-else :size="20" />
                 </button>
             </div>
-            <span class="error-text" :class="{ 'is-visible': fieldErrors.password }">{{ fieldErrors.password }}</span>
+            <span class="error-text" :class="{ 'is-visible': errors.password }">{{ errors.password }}</span>
         </div>
 
-        <div class="form-group" :class="{ error: fieldErrors.confirmPassword }">
+        <div class="form-group" :class="{ error: errors.confirmPassword }">
             <label>Konfirmasi Password</label>
             <div class="password-input">
-                <input v-model="form.confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
+                <input v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
                     placeholder="Ulangi password">
                 <button type="button" class="toggle-password" @click="showConfirmPassword = !showConfirmPassword">
                     <Eye v-if="!showConfirmPassword" :size="20" />
                     <EyeClosed v-else :size="20" />
                 </button>
             </div>
-            <span class="error-text" :class="{ 'is-visible': fieldErrors.confirmPassword }">{{ fieldErrors.confirmPassword }}</span>
+            <span class="error-text" :class="{ 'is-visible': errors.confirmPassword }">{{ errors.confirmPassword }}</span>
         </div>
 
         <button type="submit" class="btn-login" :disabled="isSubmitting">
@@ -64,6 +64,8 @@
 definePageMeta({ layout: 'auth' })
 
 import { Eye, EyeClosed } from 'lucide-vue-next'
+import { useForm } from 'vee-validate'
+import { toTypedSchema } from '@vee-validate/zod'
 
 const { register: registerRequest } = useAuth()
 const { errorMessage, handleApiError } = useApiError()
@@ -71,60 +73,32 @@ const toast = useAppToast()
 
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
-const isSubmitting = ref(false)
-const fieldErrors = ref({})
 
-const form = reactive({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+const { defineField, handleSubmit, errors, isSubmitting } = useForm({
+    validationSchema: toTypedSchema(registerSchema),
+    initialValues: { name: '', email: '', password: '', confirmPassword: '' },
 })
 
-function validate() {
-    fieldErrors.value = {}
+const [name] = defineField('name')
+const [email] = defineField('email')
+const [password] = defineField('password')
+const [confirmPassword] = defineField('confirmPassword')
 
-    if (!form.name) {
-        fieldErrors.value.name = 'Kolom ini harus diisi!'
-    }
-
-    const emailError = validateEmail(form.email)
-    if (emailError) fieldErrors.value.email = emailError
-
-    if (!form.password) {
-        fieldErrors.value.password = 'Kolom ini harus diisi!'
-    }
-
-    if (!form.confirmPassword) {
-        fieldErrors.value.confirmPassword = 'Kolom ini harus diisi!'
-    } else if (form.password !== form.confirmPassword) {
-        fieldErrors.value.confirmPassword = 'Konfirmasi password tidak sama.'
-    }
-
-    return Object.keys(fieldErrors.value).length === 0
-}
-
-async function register() {
+const onSubmit = handleSubmit(async (values) => {
     errorMessage.value = ''
-
-    if (!validate()) return
-
-    isSubmitting.value = true
 
     try {
         await registerRequest({
-            name: form.name,
-            email: form.email,
-            password: form.password,
-            password_confirmation: form.confirmPassword,
+            name: values.name,
+            email: values.email,
+            password: values.password,
+            password_confirmation: values.confirmPassword,
         })
 
         toast.success('Registrasi berhasil! Silakan login.')
         await navigateTo('/auth/login')
     } catch (error) {
         handleApiError(error)
-    } finally {
-        isSubmitting.value = false
     }
-}
+})
 </script>

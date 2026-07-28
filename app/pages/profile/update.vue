@@ -4,12 +4,12 @@
             <h2>Edit Profil</h2>
         </header>
 
-        <form novalidate @submit.prevent="handleSubmit">
+        <form novalidate @submit.prevent="onSubmit">
             <div class="profile__body">
                 <div class="profile__card">
                     <div class="profile__avatar-wrapper">
                         <div class="profile__avatar">
-                            <img v-if="avatarPreview" :src="avatarPreview" :alt="form.name" class="profile__avatar-img">
+                            <img v-if="avatarPreview" :src="avatarPreview" :alt="name" class="profile__avatar-img">
                             <span v-else>{{ userInitials }}</span>
                         </div>
 
@@ -28,10 +28,10 @@
                         {{ errorMessage }}
                     </div>
 
-                    <div class="form-group" :class="{ error: fieldErrors.name }">
+                    <div class="form-group" :class="{ error: errors.name }">
                         <label>Nama</label>
-                        <input v-model="form.name" type="text" placeholder="Masukkan nama lengkap">
-                        <span class="error-text" :class="{ 'is-visible': fieldErrors.name }">{{ fieldErrors.name }}</span>
+                        <input v-model="name" type="text" placeholder="Masukkan nama lengkap">
+                        <span class="error-text" :class="{ 'is-visible': errors.name }">{{ errors.name }}</span>
                     </div>
 
                     <div class="form-group">
@@ -39,23 +39,23 @@
                         <input :value="user?.email" type="email" disabled>
                     </div>
 
-                    <div class="form-group" :class="{ error: fieldErrors.password }">
+                    <div class="form-group" :class="{ error: errors.password }">
                         <label>Password Baru</label>
                         <div class="password-input">
-                            <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
+                            <input v-model="password" :type="showPassword ? 'text' : 'password'"
                                 placeholder="Kosongkan jika tidak diubah">
                             <button type="button" class="toggle-password" @click="showPassword = !showPassword">
                                 <Eye v-if="!showPassword" :size="20" />
                                 <EyeClosed v-else :size="20" />
                             </button>
                         </div>
-                        <span class="error-text" :class="{ 'is-visible': fieldErrors.password }">{{ fieldErrors.password }}</span>
+                        <span class="error-text" :class="{ 'is-visible': errors.password }">{{ errors.password }}</span>
                     </div>
 
-                    <div class="form-group" :class="{ error: fieldErrors.confirmPassword }">
+                    <div class="form-group" :class="{ error: errors.confirmPassword }">
                         <label>Konfirmasi Password Baru</label>
                         <div class="password-input">
-                            <input v-model="form.confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
+                            <input v-model="confirmPassword" :type="showConfirmPassword ? 'text' : 'password'"
                                 placeholder="Ulangi password baru">
                             <button type="button" class="toggle-password"
                                 @click="showConfirmPassword = !showConfirmPassword">
@@ -63,7 +63,7 @@
                                 <EyeClosed v-else :size="20" />
                             </button>
                         </div>
-                        <span class="error-text" :class="{ 'is-visible': fieldErrors.confirmPassword }">{{ fieldErrors.confirmPassword }}</span>
+                        <span class="error-text" :class="{ 'is-visible': errors.confirmPassword }">{{ errors.confirmPassword }}</span>
                     </div>
                 </div>
 
@@ -85,13 +85,15 @@ useHead({ title: 'Update · Profile' })
 
 import '~/assets/css/login.scss'
 import { Eye, EyeClosed, Pencil } from 'lucide-vue-next'
+import { useForm } from 'vee-validate'
+import { toTypedSchema } from '@vee-validate/zod'
 
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024
 const MAX_AVATAR_SIZE_LABEL = '2MB'
 
 const { user, fetchUser, updateProfile, fetchPhotoBlobUrl } = useAuth()
-const { errorMessage, handleApiError } = useApiError()
 const toast = useAppToast()
+const errorMessage = ref('')
 
 const avatarInputRef = ref(null)
 const avatarFile = ref(null)
@@ -99,20 +101,21 @@ const avatarError = ref('')
 
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
-const isSubmitting = ref(false)
-const fieldErrors = ref({})
 
-const form = reactive({
-    name: '',
-    password: '',
-    confirmPassword: '',
+const { defineField, handleSubmit, errors, isSubmitting, setValues } = useForm({
+    validationSchema: toTypedSchema(updateProfileSchema),
+    initialValues: { name: '', password: '', confirmPassword: '' },
 })
+
+const [name] = defineField('name')
+const [password] = defineField('password')
+const [confirmPassword] = defineField('confirmPassword')
 
 await useAsyncData('profile-update-data', async () => {
     if (!user.value) {
         await fetchUser()
     }
-    form.name = user.value?.name ?? ''
+    setValues({ name: user.value?.name ?? '' })
     return true
 })
 
@@ -130,18 +133,7 @@ onBeforeUnmount(() => {
     }
 })
 
-const userInitials = computed(() => {
-    const name = form.name?.trim()
-    if (!name) return ''
-
-    const parts = name.split(/\s+/)
-
-    if (parts.length === 1) {
-        return parts[0].charAt(0).toUpperCase()
-    }
-
-    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
-})
+const userInitials = computed(() => getInitials(name.value))
 
 const triggerAvatarInput = () => {
     avatarInputRef.value?.click()
@@ -172,49 +164,21 @@ const onAvatarChange = (e) => {
     avatarPreview.value = URL.createObjectURL(file)
 }
 
-function validate() {
-    fieldErrors.value = {}
-
-    if (!form.name.trim()) {
-        fieldErrors.value.name = 'Kolom ini harus diisi!'
-    }
-
-    if (form.password || form.confirmPassword) {
-        if (form.password.length < 6) {
-            fieldErrors.value.password = 'Password minimal 6 karakter.'
-        }
-
-        if (!form.confirmPassword) {
-            fieldErrors.value.confirmPassword = 'Kolom ini harus diisi!'
-        } else if (form.password !== form.confirmPassword) {
-            fieldErrors.value.confirmPassword = 'Konfirmasi password tidak sama.'
-        }
-    }
-
-    return Object.keys(fieldErrors.value).length === 0
-}
-
-async function handleSubmit() {
+const onSubmit = handleSubmit(async (values) => {
     errorMessage.value = ''
-
-    if (!validate()) return
-
-    isSubmitting.value = true
 
     try {
         await updateProfile({
-            name: form.name.trim(),
-            password: form.password || undefined,
-            password_confirmation: form.confirmPassword || undefined,
+            name: values.name,
+            password: values.password || undefined,
+            password_confirmation: values.confirmPassword || undefined,
             photo: avatarFile.value,
         })
 
         toast.info('Profil berhasil diubah!')
         await navigateTo('/profile')
     } catch (error) {
-        handleApiError(error)
-    } finally {
-        isSubmitting.value = false
+        errorMessage.value = error?.data?.message || 'Terjadi kesalahan, silakan coba lagi.'
     }
-}
+})
 </script>

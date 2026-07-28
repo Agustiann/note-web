@@ -14,5 +14,5 @@ export default defineNuxtConfig({
     }
   },
 
-  modules: ['@nuxt/ui'],
+  modules: ['@vueuse/nuxt'],
 })

@@ -155,7 +155,7 @@
                                             <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
                                                 stroke-linejoin="round" />
                                         </svg>
-                                        <input ref="noteInputRef" v-model="noteInputValue" class="sidebar__note-input"
+                                        <input :ref="(el) => setNoteInputRef(el, folder.id)" v-model="noteInputValue" class="sidebar__note-input"
                                             placeholder="Judul catatan..." @click.stop
                                             @keyup.enter="confirmNoteInput(folder.id)" @keyup.esc="cancelNoteInput"
                                             @blur="confirmNoteInput(folder.id)">
@@ -234,11 +234,11 @@
             </Transition>
         </div>
 
+        <div ref="dragPreviewRef" class="drag-preview" aria-hidden="true"></div>
+
     </aside>
 </template>
 <script setup>
-// Kalau modul @vueuse/nuxt sudah terpasang, import ini bisa dihapus (auto-import).
-import { onClickOutside } from '@vueuse/core'
 
 const emit = defineEmits(['note-moved'])
 
@@ -307,9 +307,6 @@ onMounted(async () => {
     if (!user.value) {
         await fetchUser()
     }
-    if (user.value?.photo) {
-        photoSrc.value = await fetchPhotoBlobUrl(user.value.photo)
-    }
 })
 
 const openedFolders = ref([])
@@ -318,7 +315,11 @@ const isUserMenuOpen = ref(false)
 const photoSrc = ref(null)
 
 const userMenuRef = ref(null)
-const noteInputRef = ref(null)
+const noteInputRefs = new Map()
+const setNoteInputRef = (el, folderId) => {
+    if (el) noteInputRefs.set(folderId, el)
+    else noteInputRefs.delete(folderId)
+}
 const unfiledNoteInputRef = ref(null)
 
 const folderInputRefs = new Map()
@@ -384,11 +385,24 @@ const closeFolderMenu = () => {
 
 onClickOutside(userMenuRef, closeUserMenu)
 onClickOutside(() => folderMenuRefs.get(openedMenuId.value), closeFolderMenu)
-
 onBeforeUnmount(() => {
     if (photoSrc.value) URL.revokeObjectURL(photoSrc.value)
 })
 
+watch(user, async (newUser) => {
+    if (photoSrc.value) {
+        URL.revokeObjectURL(photoSrc.value)
+        photoSrc.value = null
+    }
+
+    if (newUser?.photo) {
+        try {
+            photoSrc.value = await fetchPhotoBlobUrl(newUser.photo)
+        } catch (error) {
+            photoSrc.value = null
+        }
+    }
+}, { immediate: true })
 const addFolder = () => {
     if (isCreatingFolder.value) return
 
@@ -527,7 +541,7 @@ const startAddNote = (folder) => {
     creatingNoteFolderId.value = folder.id
     noteInputValue.value = ''
     nextTick(() => {
-        noteInputRef.value?.focus()
+        noteInputRefs.get(folder.id)?.focus()
     })
 }
 
@@ -583,22 +597,16 @@ const confirmUnfiledNoteInput = async () => {
 const draggedNote = ref(null)
 const dragOverFolderId = ref(null)
 const isDragOverUnfiled = ref(false)
+const dragPreviewRef = ref(null)
 
 const handleNoteDragStart = (note, sourceFolderId, event) => {
     draggedNote.value = { noteId: note.id, sourceFolderId }
 
-    if (event?.dataTransfer) {
+    if (event?.dataTransfer && dragPreviewRef.value) {
         event.dataTransfer.setData('text/plain', note.title)
 
-        const dragPreview = document.createElement('div')
-        dragPreview.className = 'drag-preview'
-        dragPreview.textContent = note.title
-        document.body.appendChild(dragPreview)
-        event.dataTransfer.setDragImage(dragPreview, 10, 10)
-
-        requestAnimationFrame(() => {
-            document.body.removeChild(dragPreview)
-        })
+        dragPreviewRef.value.textContent = note.title
+        event.dataTransfer.setDragImage(dragPreviewRef.value, 10, 10)
     }
 }
 
@@ -667,6 +675,7 @@ const handleFolderDrop = async (targetFolderId) => {
     try {
         await moveNote(noteId, targetFolderId)
         emit('note-moved', { noteId, fromFolderId: sourceFolderId, toFolderId: targetFolderId })
+        notifyNotesChanged()
     } catch (error) {
         const target = getFolderNotesRef(targetFolderId)
         const revertIndex = target?.findIndex(n => n.id === noteId) ?? -1
@@ -682,16 +691,5 @@ const totalNotes = computed(() => {
     return inFolders + unfiledNotes.value.length
 })
 
-const userInitials = computed(() => {
-    const name = user.value?.name?.trim()
-    if (!name) return ''
-
-    const parts = name.split(/\s+/)
-
-    if (parts.length === 1) {
-        return parts[0].charAt(0).toUpperCase()
-    }
-
-    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
-})
+const userInitials = computed(() => getInitials(user.value?.name))
 </script>

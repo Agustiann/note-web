@@ -52,8 +52,6 @@ const sortedItems = computed(() => {
     })
 })
 
-const createId = () => `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
 const inputRefs = {}
 const setInputRef = (el, id) => {
     if (el) inputRefs[id] = el
@@ -72,7 +70,7 @@ const focusInputEnd = (id) => {
 
 const addItem = () => {
     const item = {
-        id: createId(),
+        id: useTempId(),
         content: '',
         isCompleted: false,
         isSaving: false,

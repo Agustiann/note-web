@@ -72,25 +72,13 @@ onBeforeUnmount(() => {
     if (photoSrc.value) URL.revokeObjectURL(photoSrc.value)
 })
 
-const userInitials = computed(() => {
-    const name = user.value?.name?.trim()
-    if (!name) return ''
+const userInitials = computed(() => getInitials(user.value?.name))
 
-    const parts = name.split(/\s+/)
-
-    if (parts.length === 1) {
-        return parts[0].charAt(0).toUpperCase()
-    }
-
-    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
-})
-
-const joinedLabel = computed(() => {
-    if (!user.value?.created_at) return '-'
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'long',
-    }).format(new Date(user.value.created_at))
-})
+const joinedLabel = useFormattedDate(
+    () => user.value?.created_at,
+    'D MMMM YYYY',
+    '-'
+)
 
 const handleLogout = async () => {
     await logout()

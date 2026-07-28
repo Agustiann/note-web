@@ -55,22 +55,13 @@ const completedCount = computed(
   () => props.note.checklists?.filter((c) => c.is_completed).length ?? 0
 )
 
-const formattedDate = computed(() => {
-  const value = props.note[props.dateField]
-  if (!value) return ''
-  return new Date(value).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
-})
+const formattedDate = useFormattedDate(
+  () => props.note[props.dateField],
+  'DD MMM YYYY'
+)
 
-const formattedTime = computed(() => {
-  const value = props.note[props.dateField]
-  if (!value) return ''
-  return new Date(value).toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-})
+const formattedTime = useFormattedDate(
+  () => props.note[props.dateField],
+  'HH:mm'
+)
 </script>

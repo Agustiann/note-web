@@ -44,6 +44,8 @@ useHead({ title: 'Dashboard · Notes' })
 
 const { fetchNotes } = useNotes()
 const { fetchFolders } = useFolders()
+const { version: notesSyncVersion } = useNotesSync()
+const { version: foldersSyncVersion } = useFoldersSync()
 
 const { data, pending, error, refresh } = await useAsyncData('dashboard', async () => {
   const [notesResponse, folders] = await Promise.all([
@@ -57,6 +59,9 @@ const { data, pending, error, refresh } = await useAsyncData('dashboard', async 
     totalFolders: folders.length,
   }
 })
+
+watch(notesSyncVersion, () => refresh())
+watch(foldersSyncVersion, () => refresh())
 
 const loadError = computed(() => {
   if (!error.value) return ''

@@ -62,9 +62,9 @@ const toast = useAppToast()
 const { fetchFolders } = useFolders()
 const { version: foldersSyncVersion } = useFoldersSync()
 const { fetchNote, updateNote, deleteNote } = useNotes()
-const { uploadImage, deleteImage, fetchImageBlobUrl } = useNoteImages()
+const { uploadImage, deleteImage } = useNoteImages()
 const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNoteChecklists()
-const { notifyNotesChanged } = useNotesSync()
+const { version: notesSyncVersion, notifyNotesChanged } = useNotesSync()
 
 const checklistSectionRef = ref(null)
 
@@ -107,22 +107,6 @@ const loadError = computed(() => {
     return loadErrorRaw.value?.data?.message || 'Gagal memuat catatan.'
 })
 
-const loadImagePreviews = (images) => {
-    for (const image of images) {
-        const target = form.images.find((img) => img.id === image.id) ?? image
-
-        fetchImageBlobUrl(target.url)
-            .then((blobUrl) => { target.src = blobUrl })
-            .catch(() => { })
-    }
-}
-
-const revokeImagePreviews = () => {
-    for (const image of form.images) {
-        if (image.src) URL.revokeObjectURL(image.src)
-    }
-}
-
 watch(pageData, (value) => {
     const note = value?.note
     if (!note) return
@@ -130,7 +114,6 @@ watch(pageData, (value) => {
     form.title = note.title
     form.folderId = note.folder_id
     form.content = note.content ?? ''
-    revokeImagePreviews()
     form.checklist = (note.checklists ?? []).map(item => ({
         id: item.id,
         content: item.content,
@@ -142,37 +125,39 @@ watch(pageData, (value) => {
         id: image.id,
         name: image.file_name ?? '',
         url: image.url,
-        src: null,
         isDeleting: false,
     }))
-    loadImagePreviews(form.images)
     lastUpdated.value = new Date(note.updated_at)
     lastSavedTitle.value = note.title
 }, { immediate: true })
 
 onBeforeUnmount(() => {
-    revokeImagePreviews()
     clearTimeout(saveTimer)
 })
 
 watch(foldersSyncVersion, refreshNote)
 
+let skipNextNotesSync = false
+watch(notesSyncVersion, () => {
+    if (skipNextNotesSync) {
+        skipNextNotesSync = false
+        return
+    }
+    refreshNote()
+})
+
 useHead({ title: computed(() => form.title ? `${form.title} · Notes` : 'Catatan') })
 
-const lastUpdatedLabel = computed(() => {
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(lastUpdated.value)
-})
+const lastUpdatedLabel = useFormattedDate(
+    lastUpdated,
+    'D MMM YYYY, HH:mm'
+)
 
 const saveStatusLabel = computed(() => {
     if (isSaving.value) return 'Menyimpan...'
     if (saveError.value) return 'Gagal menyimpan'
     return `Tersimpan · ${lastUpdatedLabel.value}`
 })
-
-const isTempId = (id) => typeof id === 'string' && id.startsWith('tmp-')
 
 let saveTimer = null
 
@@ -193,6 +178,7 @@ const performSave = async () => {
         })
         lastUpdated.value = new Date(updated.updated_at)
         lastSavedTitle.value = updated.title
+        skipNextNotesSync = true
         notifyNotesChanged()
     } catch (error) {
         saveError.value = error?.data?.errors?.title?.[0]
@@ -333,15 +319,12 @@ const handleImageSelected = async (fileList) => {
         const file = filesToProcess[i]
         if (result.status === 'fulfilled') {
             const uploaded = result.value
-            const entry = {
+            form.images.push({
                 id: uploaded.id,
                 name: uploaded.file_name,
                 url: uploaded.url,
-                src: null,
                 isDeleting: false,
-            }
-            form.images.push(entry)
-            loadImagePreviews([entry])
+            })
         } else {
             failedNames.push(file.name)
         }
@@ -360,7 +343,6 @@ const removeImage = async (id) => {
 
     try {
         await deleteImage(noteId.value, id)
-        if (image.src) URL.revokeObjectURL(image.src)
         form.images = form.images.filter(img => img.id !== id)
     } catch (error) {
         image.isDeleting = false
