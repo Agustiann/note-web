@@ -18,6 +18,7 @@ export interface NoteImage {
     id: string
     file_name: string
     url: string
+    content?: string
     mime_type: string
     created_at: string
 }

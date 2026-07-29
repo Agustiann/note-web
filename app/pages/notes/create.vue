@@ -75,6 +75,14 @@ const { items: noteImages, add: addNoteImage, remove: removeNoteImage } = useBlo
 const isSaving = ref(false)
 const saveError = ref('')
 const imageError = ref('')
+const skipGuard = ref(false)
+
+const isDirty = computed(() =>
+    !!form.title.trim()
+    || !!form.content?.trim()
+    || form.checklist.some(item => item.content.trim())
+    || noteImages.value.length > 0
+)
 
 const removeChecklistItem = (id) => {
     form.checklist = form.checklist.filter(item => item.id !== id)
@@ -119,10 +127,10 @@ const removeImage = (id) => {
     removeNoteImage(id)
 }
 
-const handleSave = async () => {
+const performSave = async () => {
     if (!form.title.trim()) {
         saveError.value = 'Judul catatan tidak boleh kosong'
-        return
+        return false
     }
 
     saveError.value = ''
@@ -161,18 +169,33 @@ const handleSave = async () => {
             toast.created('Catatan berhasil disimpan')
         }
 
-        await navigateTo('/notes')
+        return true
     } catch (error) {
         saveError.value = error?.data?.errors?.title?.[0]
             || error?.data?.message
             || 'Gagal membuat catatan, coba lagi'
         toast.error(saveError.value)
+        return false
     } finally {
         isSaving.value = false
     }
 }
 
+const handleSave = async () => {
+    const saved = await performSave()
+    if (saved) {
+        skipGuard.value = true
+        await navigateTo('/notes')
+    }
+}
+
 const handleCancel = async () => {
+    skipGuard.value = true
     await navigateTo('/notes')
 }
+
+useUnsavedChangesGuard(
+    () => !skipGuard.value && isDirty.value,
+    performSave
+)
 </script>

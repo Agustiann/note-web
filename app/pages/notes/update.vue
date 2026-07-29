@@ -19,7 +19,7 @@
         <div v-else class="update-note__card">
 
             <div class="update-note__meta">
-                <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders" />
+                <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders" @open="loadFolders" />
             </div>
 
             <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan..."
@@ -91,16 +91,23 @@ const {
 } = await useAsyncData(
     () => `note-${noteId.value}`,
     async () => {
-        const [note, folderList] = await Promise.all([
-            fetchNote(noteId.value),
-            fetchFolders(),
-        ])
-        return { note, folders: folderList }
+        const note = await fetchNote(noteId.value)
+        return { note }
     },
     { watch: [noteId] }
 )
 
-const folders = computed(() => pageData.value?.folders ?? [])
+const folders = ref([])
+const foldersLoaded = ref(false)
+
+const loadFolders = async () => {
+    if (foldersLoaded.value) return
+    try {
+        folders.value = await fetchFolders()
+        foldersLoaded.value = true
+    } catch (error) {
+    }
+}
 
 const loadError = computed(() => {
     if (!loadErrorRaw.value) return ''
@@ -121,9 +128,13 @@ const loadNoteImages = async (noteImages) => {
     )
 }
 
+let isHydratingForm = false
+
 watch(pageData, (value) => {
     const note = value?.note
     if (!note) return
+
+    isHydratingForm = true
 
     form.title = note.title
     form.folderId = note.folder_id
@@ -138,6 +149,13 @@ watch(pageData, (value) => {
     loadNoteImages(note.images)
     lastUpdated.value = new Date(note.updated_at)
     lastSavedTitle.value = note.title
+
+    folders.value = note.folder ? [note.folder] : []
+    foldersLoaded.value = false
+
+    nextTick(() => {
+        isHydratingForm = false
+    })
 }, { immediate: true })
 
 onBeforeUnmount(() => {
@@ -200,6 +218,7 @@ const performSave = async () => {
 
 const scheduleSave = () => {
     if (isLoading.value) return
+    if (isHydratingForm) return
     clearTimeout(saveTimer)
     saveTimer = setTimeout(performSave, 800)
     // performSave()
@@ -210,6 +229,7 @@ watch(() => form.content, scheduleSave)
 
 watch(() => form.folderId, () => {
     if (isLoading.value) return
+    if (isHydratingForm) return
     clearTimeout(saveTimer)
     performSave()
 })
