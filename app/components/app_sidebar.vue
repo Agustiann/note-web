@@ -201,7 +201,7 @@ const activeNoteId = computed(() => route.params.id ?? null)
 
 const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
-const { notifyFoldersChanged } = useFoldersSync()
+const { version: foldersSyncVersion, lastEvent: foldersLastEvent, notifyFoldersChanged } = useFoldersSync()
 const { fetchNotes, moveNote, createNote } = useNotes()
 const { version: notesSyncVersion, lastEvent: notesLastEvent, notifyNotesChanged } = useNotesSync()
 
@@ -295,10 +295,8 @@ const upsertNoteLocally = (note) => {
     insertNoteSorted(folder.notes, note)
 }
 
-watch(notesSyncVersion, () => {
-    const event = notesLastEvent.value
-
-    if (event?.type === 'update' || event?.type === 'create') {
+const handleNoteEvent = (event) => {
+    if (event?.type === 'update' || event?.type === 'create' || event?.type === 'note') {
         upsertNoteLocally(event.note)
         return
     }
@@ -309,7 +307,15 @@ watch(notesSyncVersion, () => {
     }
 
     refreshSidebarData()
+}
+
+watch(notesSyncVersion, () => handleNoteEvent(notesLastEvent.value))
+
+watch(foldersSyncVersion, () => {
+    const event = foldersLastEvent.value
+    if (event?.type === 'note') handleNoteEvent(event)
 })
+
 onMounted(async () => {
     if (!user.value) {
         await fetchUser()

@@ -42,6 +42,7 @@ useHead({ title: 'All · Notes' })
 
 const { fetchNotes } = useNotes()
 const { version: notesSyncVersion } = useNotesSync()
+const { version: foldersSyncVersion } = useFoldersSync()
 
 const search = ref('')
 
@@ -56,7 +57,7 @@ const notes = computed(() => notesResponse.value?.data?.notes ?? [])
 const totalAllNotes = computed(() => notesResponse.value?.data?.total_all_notes ?? 0)
 const loadError = computed(() => loadErrorRaw.value ? 'Gagal memuat catatan.' : '')
 
-watch(notesSyncVersion, () => {
+watch([notesSyncVersion, foldersSyncVersion], () => {
   refreshNotes()
 })
 

@@ -2,12 +2,14 @@ import type { ApiResponse, Folder } from '~/types/api'
 
 export const useFoldersSync = () => {
   const version = useState('folders-sync-version', () => 0)
+  const lastEvent = useState('folders-sync-event', () => null)
 
-  const notifyFoldersChanged = () => {
+  const notifyFoldersChanged = (event = null) => {
+    lastEvent.value = event
     version.value++
   }
 
-  return { version, notifyFoldersChanged }
+  return { version, lastEvent, notifyFoldersChanged }
 }
 
 export const useFolders = () => {

@@ -60,11 +60,12 @@ const noteId = computed(() => route.query.id)
 const toast = useAppToast()
 
 const { fetchFolders } = useFolders()
-const { version: foldersSyncVersion } = useFoldersSync()
+const { version: foldersSyncVersion, lastEvent: foldersLastEvent, notifyFoldersChanged } = useFoldersSync()
 const { fetchNote, updateNote, deleteNote } = useNotes()
 const { uploadImage, deleteImage, fetchImageBlob } = useNoteImages()
 const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNoteChecklists()
 const { version: notesSyncVersion, lastEvent: notesLastEvent, notifyNotesChanged } = useNotesSync()
+
 
 const checklistSectionRef = ref(null)
 
@@ -162,7 +163,18 @@ watch(pageData, (value) => {
     })
 }, { immediate: true })
 
-watch(foldersSyncVersion, refreshNote)
+let skipNextFoldersSync = false
+watch(foldersSyncVersion, () => {
+    if (skipNextFoldersSync) {
+        skipNextFoldersSync = false
+        return
+    }
+
+    const event = foldersLastEvent.value
+    if (event?.type === 'note' && event.note?.id !== noteId.value) return
+
+    refreshNote()
+})
 
 let skipNextNotesSync = false
 watch(notesSyncVersion, () => {
@@ -235,7 +247,13 @@ const executeSave = async () => {
         lastSavedContent.value = updated.content ?? ''
         lastSavedFolderId.value = updated.folder_id ?? null
         skipNextNotesSync = true
-        notifyNotesChanged({ type: 'update', note: updated })
+        skipNextFoldersSync = true
+
+        if (updated.folder_id) {
+            notifyFoldersChanged({ type: 'note', note: updated })
+        } else {
+            notifyNotesChanged({ type: 'update', note: updated })
+        }
         return true
     } catch (error) {
         saveError.value = error?.data?.errors?.title?.[0]
@@ -266,13 +284,10 @@ const handleContentBlur = () => {
     performSave()
 }
 
-onBeforeRouteLeave(async (to, from, next) => {
-    if (!isDirty.value) {
-        next()
-        return
-    }
+onBeforeRouteLeave(async () => {
+    if (!isDirty.value) return true
     await performSave()
-    next()
+    return true
 })
 
 const handleBeforeUnload = (event) => {

@@ -59,6 +59,7 @@ const { createNote } = useNotes()
 const { uploadImage } = useNoteImages()
 const { createChecklistItem } = useNoteChecklists()
 const { notifyNotesChanged } = useNotesSync()
+const { notifyFoldersChanged } = useFoldersSync()
 
 const { data: folders, error: foldersError } = await useAsyncData('note-folders', () => fetchFolders())
 
@@ -158,7 +159,11 @@ const performSave = async () => {
             .map((result, i) => (result.status === 'rejected' ? validChecklist[i]?.content.trim() : null))
             .filter(Boolean)
 
-        notifyNotesChanged({ type: 'create', note })
+        if (note.folder_id) {
+            notifyFoldersChanged({ type: 'note', note })
+        } else {
+            notifyNotesChanged({ type: 'create', note })
+        }
 
         if (failedUploads.length || failedChecklists.length) {
             const parts = []
