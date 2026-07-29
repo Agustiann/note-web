@@ -95,7 +95,7 @@ const onSubmit = handleSubmit(async (values) => {
             password_confirmation: values.confirmPassword,
         })
 
-        toast.success('Registrasi berhasil! Silakan login.')
+        toast.created('Registrasi berhasil! Silakan login.')
         await navigateTo('/auth/login')
     } catch (error) {
         handleApiError(error)

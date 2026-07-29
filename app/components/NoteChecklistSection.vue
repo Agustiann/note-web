@@ -52,15 +52,15 @@ const sortedItems = computed(() => {
     })
 })
 
-const inputRefs = {}
+const inputRefs = new Map()
 const setInputRef = (el, id) => {
-    if (el) inputRefs[id] = el
-    else delete inputRefs[id]
+    if (el) inputRefs.set(id, el)
+    else inputRefs.delete(id)
 }
 
 const focusInputEnd = (id) => {
     nextTick(() => {
-        const el = inputRefs[id]
+        const el = inputRefs.get(id)
         if (!el) return
         el.focus()
         const len = el.value.length
@@ -78,7 +78,7 @@ const addItem = () => {
     }
     props.items.push(item)
     nextTick(() => {
-        inputRefs[item.id]?.focus()
+        inputRefs.get(item.id)?.focus()
     })
     return item
 }

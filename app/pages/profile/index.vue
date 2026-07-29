@@ -52,6 +52,7 @@ useHead({ title: 'Profile' })
 import { Pencil, LogOut } from 'lucide-vue-next'
 
 const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
+const { src: photoSrc, loadFrom } = useBlobImage()
 
 const { pending: isLoading } = await useAsyncData('profile-data', async () => {
     if (!user.value) {
@@ -60,16 +61,10 @@ const { pending: isLoading } = await useAsyncData('profile-data', async () => {
     return true
 })
 
-const photoSrc = ref(null)
-
-onMounted(async () => {
+onMounted(() => {
     if (user.value?.photo) {
-        photoSrc.value = await fetchPhotoBlobUrl(user.value.photo)
+        loadFrom(() => fetchPhotoBlobUrl(user.value.photo))
     }
-})
-
-onBeforeUnmount(() => {
-    if (photoSrc.value) URL.revokeObjectURL(photoSrc.value)
 })
 
 const userInitials = computed(() => getInitials(user.value?.name))

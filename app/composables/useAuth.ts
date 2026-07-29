@@ -1,10 +1,4 @@
-interface AuthUser {
-  id: string
-  name: string
-  email: string
-  photo: string | null
-  created_at: string
-}
+import type { ApiResponse, AuthUser } from '~/types/api'
 
 interface RegisterPayload {
   name: string
@@ -20,12 +14,7 @@ interface UpdateProfilePayload {
   photo?: File | null
 }
 
-interface SingleResponse<T> {
-  message: string
-  data: T
-}
-
-interface LoginResponse extends SingleResponse<AuthUser> {
+interface LoginResponse extends ApiResponse<AuthUser> {
   token: string
 }
 
@@ -41,7 +30,7 @@ export const useAuth = () => {
 
   const login = async (email: string, password: string) => {
     clearNuxtData()
-    
+
     const response = await api<LoginResponse>('/auth/login', {
       method: 'POST',
       body: { email, password },
@@ -54,7 +43,7 @@ export const useAuth = () => {
   }
 
   const register = async (payload: RegisterPayload) => {
-    const response = await api<SingleResponse<AuthUser>>('/auth/register', {
+    const response = await api<ApiResponse<AuthUser>>('/auth/register', {
       method: 'POST',
       body: payload,
     })
@@ -72,7 +61,7 @@ export const useAuth = () => {
   }
 
   const fetchUser = async () => {
-    const response = await api<SingleResponse<AuthUser>>('/auth/me')
+    const response = await api<ApiResponse<AuthUser>>('/auth/me')
     user.value = response.data
     return response.data
   }
@@ -91,7 +80,7 @@ export const useAuth = () => {
       formData.append('photo', payload.photo)
     }
 
-    const response = await api<SingleResponse<AuthUser>>('/auth/profile', {
+    const response = await api<ApiResponse<AuthUser>>('/auth/profile', {
       method: 'POST',
       body: formData,
     })
@@ -99,10 +88,9 @@ export const useAuth = () => {
     user.value = response.data
     return response.data
   }
-  
+
   const fetchPhotoBlobUrl = async (photoUrl: string) => {
-    const blob = await api<Blob>(photoUrl, { responseType: 'blob', cache: 'no-store' })
-    return URL.createObjectURL(blob)
+    return await api<Blob>(photoUrl, { responseType: 'blob', cache: 'no-store' })
   }
 
   const isAuthenticated = computed(() => !!token.value)

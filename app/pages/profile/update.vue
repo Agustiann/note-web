@@ -83,7 +83,6 @@
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Update · Profile' })
 
-import '~/assets/css/login.scss'
 import { Eye, EyeClosed, Pencil } from 'lucide-vue-next'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -119,17 +118,11 @@ await useAsyncData('profile-update-data', async () => {
     return true
 })
 
-const avatarPreview = ref(null)
+const { src: avatarPreview, loadFrom, setFromFile } = useBlobImage()
 
-onMounted(async () => {
+onMounted(() => {
     if (user.value?.photo) {
-        avatarPreview.value = await fetchPhotoBlobUrl(user.value.photo)
-    }
-})
-
-onBeforeUnmount(() => {
-    if (avatarPreview.value && avatarPreview.value.startsWith('blob:')) {
-        URL.revokeObjectURL(avatarPreview.value)
+        loadFrom(() => fetchPhotoBlobUrl(user.value.photo))
     }
 })
 
@@ -156,12 +149,8 @@ const onAvatarChange = (e) => {
         return
     }
 
-    if (avatarPreview.value && avatarPreview.value.startsWith('blob:')) {
-        URL.revokeObjectURL(avatarPreview.value)
-    }
-
     avatarFile.value = file
-    avatarPreview.value = URL.createObjectURL(file)
+    setFromFile(file)
 }
 
 const onSubmit = handleSubmit(async (values) => {
@@ -175,7 +164,7 @@ const onSubmit = handleSubmit(async (values) => {
             photo: avatarFile.value,
         })
 
-        toast.info('Profil berhasil diubah!')
+        toast.updated('Profil berhasil diubah!')
         await navigateTo('/profile')
     } catch (error) {
         errorMessage.value = error?.data?.message || 'Terjadi kesalahan, silakan coba lagi.'

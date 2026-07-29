@@ -22,7 +22,7 @@
             <input v-model="form.title" class="update-note__title-input" placeholder="Judul...">
 
             <NoteImageSection
-                :images="form.images"
+                :images="noteImages"
                 :max-images="MAX_IMAGES"
                 :max-size-label="MAX_IMAGE_SIZE_LABEL"
                 :error="imageError"
@@ -53,7 +53,6 @@
 definePageMeta({ layout: 'default' })
 useHead({ title: 'Create · Notes' })
 
-const router = useRouter()
 const toast = useAppToast()
 const { fetchFolders } = useFolders()
 const { createNote } = useNotes()
@@ -70,8 +69,8 @@ const form = reactive({
     folderId: null,
     content: '',
     checklist: [],
-    images: [],
 })
+const { items: noteImages, add: addNoteImage, remove: removeNoteImage } = useBlobImageList()
 
 const isSaving = ref(false)
 const saveError = ref('')
@@ -97,7 +96,7 @@ const handleImageSelected = (fileList) => {
     imageError.value = ''
 
     for (const file of files) {
-        if (form.images.length >= MAX_IMAGES) {
+        if (noteImages.value.length >= MAX_IMAGES) {
             imageError.value = `Maksimal ${MAX_IMAGES} gambar`
             break
         }
@@ -112,24 +111,13 @@ const handleImageSelected = (fileList) => {
             continue
         }
 
-        form.images.push({
-            id: useTempId(),
-            name: file.name,
-            src: URL.createObjectURL(file),
-            file,
-        })
+        addNoteImage(useTempId(), file)
     }
 }
 
 const removeImage = (id) => {
-    const target = form.images.find(image => image.id === id)
-    if (target) URL.revokeObjectURL(target.src)
-    form.images = form.images.filter(image => image.id !== id)
+    removeNoteImage(id)
 }
-
-onBeforeUnmount(() => {
-    form.images.forEach(image => URL.revokeObjectURL(image.src))
-})
 
 const handleSave = async () => {
     if (!form.title.trim()) {
@@ -148,10 +136,10 @@ const handleSave = async () => {
         })
 
         const uploadResults = await Promise.allSettled(
-            form.images.map(image => uploadImage(note.id, image.file))
+            noteImages.value.map(image => uploadImage(note.id, image.file))
         )
         const failedUploads = uploadResults
-            .map((result, i) => (result.status === 'rejected' ? form.images[i].name : null))
+            .map((result, i) => (result.status === 'rejected' ? noteImages.value[i]?.name : null))
             .filter(Boolean)
 
         const validChecklist = form.checklist.filter(item => item.content.trim())
@@ -159,7 +147,7 @@ const handleSave = async () => {
             validChecklist.map(item => createChecklistItem(note.id, item.content.trim(), item.isCompleted))
         )
         const failedChecklists = checklistResults
-            .map((result, i) => (result.status === 'rejected' ? validChecklist[i].content.trim() : null))
+            .map((result, i) => (result.status === 'rejected' ? validChecklist[i]?.content.trim() : null))
             .filter(Boolean)
 
         notifyNotesChanged()
@@ -170,10 +158,10 @@ const handleSave = async () => {
             if (failedChecklists.length) parts.push(`checklist: ${failedChecklists.join(', ')}`)
             toast.error(`Catatan tersimpan, tapi gagal menyimpan ${parts.join('; ')}`)
         } else {
-            toast.success('Catatan berhasil disimpan')
+            toast.created('Catatan berhasil disimpan')
         }
 
-        router.push('/notes')
+        await navigateTo('/notes')
     } catch (error) {
         saveError.value = error?.data?.errors?.title?.[0]
             || error?.data?.message
@@ -184,7 +172,7 @@ const handleSave = async () => {
     }
 }
 
-const handleCancel = () => {
-    router.push('/notes')
+const handleCancel = async () => {
+    await navigateTo('/notes')
 }
 </script>

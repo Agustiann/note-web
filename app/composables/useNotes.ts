@@ -1,49 +1,9 @@
-interface NoteImage {
-  id: string
-  url: string
-}
-
-interface NoteChecklistItem {
-  id: string
-  content: string
-  is_completed: boolean
-  position: number
-}
-
-interface NoteFolder {
-  id: string
-  name: string
-}
-
-interface Note {
-  id: string
-  title: string
-  content: string | null
-  folder_id: string | null
-  folder: NoteFolder | null
-  images: NoteImage[]
-  checklists: NoteChecklistItem[]
-  created_at: string
-  updated_at: string
-}
+import type { ApiResponse, Note, NotesListResponse } from '~/types/api'
 
 interface NotePayload {
   title: string
   content: string | null
   folder_id: string | null
-}
-
-interface ListResponse<T> {
-  message: string
-  data: {
-    total_all_notes: number
-    notes: T
-  }
-}
-
-interface SingleResponse<T> {
-  message: string
-  data: T
 }
 
 export const useNotesSync = () => {
@@ -60,19 +20,19 @@ export const useNotes = () => {
   const api = useApi()
 
   const fetchNotes = async (folderId?: string | null) => {
-    const response = await api<ListResponse<Note[]>>('/notes', {
+    const response = await api<NotesListResponse<Note[]>>('/notes', {
       params: folderId ? { folder_id: folderId } : undefined,
     })
     return response
   }
 
   const fetchNote = async (id: string) => {
-    const response = await api<SingleResponse<Note>>(`/notes/${id}`)
+    const response = await api<ApiResponse<Note>>(`/notes/${id}`)
     return response.data
   }
 
   const createNote = async (payload: Partial<NotePayload>) => {
-    const response = await api<SingleResponse<Note>>('/notes', {
+    const response = await api<ApiResponse<Note>>('/notes', {
       method: 'POST',
       body: payload,
     })
@@ -80,7 +40,7 @@ export const useNotes = () => {
   }
 
   const updateNote = async (id: string, payload: Partial<NotePayload>) => {
-    const response = await api<SingleResponse<Note>>(`/notes/${id}`, {
+    const response = await api<ApiResponse<Note>>(`/notes/${id}`, {
       method: 'PUT',
       body: payload,
     })

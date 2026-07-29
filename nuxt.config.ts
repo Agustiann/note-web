@@ -1,6 +1,7 @@
 export default defineNuxtConfig({
   css: [
     '~/assets/css/main.scss',
+    '~/assets/css/login.scss',
     'vue-toastification/dist/index.css',
   ],
 

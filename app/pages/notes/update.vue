@@ -25,7 +25,7 @@
             <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan..."
                 @blur="handleTitleBlur">
 
-            <NoteImageSection :images="form.images" :max-images="MAX_IMAGES" :max-size-label="MAX_IMAGE_SIZE_LABEL"
+            <NoteImageSection :images="images" :max-images="MAX_IMAGES" :max-size-label="MAX_IMAGE_SIZE_LABEL"
                 :error="imageError" @select-files="handleImageSelected" @remove="removeImage" />
 
             <div class="update-note__section">
@@ -62,7 +62,7 @@ const toast = useAppToast()
 const { fetchFolders } = useFolders()
 const { version: foldersSyncVersion } = useFoldersSync()
 const { fetchNote, updateNote, deleteNote } = useNotes()
-const { uploadImage, deleteImage } = useNoteImages()
+const { uploadImage, deleteImage, fetchImageBlob } = useNoteImages()
 const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNoteChecklists()
 const { version: notesSyncVersion, notifyNotesChanged } = useNotesSync()
 
@@ -73,8 +73,8 @@ const form = reactive({
     folderId: null,
     content: '',
     checklist: [],
-    images: [],
 })
+const { items: images, add: addImage, addFromBlob, update: updateImage, remove: removeImageItem, clear: clearImages } = useBlobImageList()
 
 const isSaving = ref(false)
 const saveError = ref('')
@@ -107,6 +107,20 @@ const loadError = computed(() => {
     return loadErrorRaw.value?.data?.message || 'Gagal memuat catatan.'
 })
 
+const loadNoteImages = async (noteImages) => {
+    clearImages()
+
+    await Promise.allSettled(
+        (noteImages ?? []).map(async (image) => {
+            try {
+                const blob = await fetchImageBlob(image.url)
+                addFromBlob(image.id, image.file_name ?? '', blob)
+            } catch (error) {
+            }
+        })
+    )
+}
+
 watch(pageData, (value) => {
     const note = value?.note
     if (!note) return
@@ -121,12 +135,7 @@ watch(pageData, (value) => {
         isSaving: false,
         isDeleting: false,
     }))
-    form.images = (note.images ?? []).map(image => ({
-        id: image.id,
-        name: image.file_name ?? '',
-        url: image.url,
-        isDeleting: false,
-    }))
+    loadNoteImages(note.images)
     lastUpdated.value = new Date(note.updated_at)
     lastSavedTitle.value = note.title
 }, { immediate: true })
@@ -193,6 +202,7 @@ const scheduleSave = () => {
     if (isLoading.value) return
     clearTimeout(saveTimer)
     saveTimer = setTimeout(performSave, 800)
+    // performSave()
 }
 
 watch(() => form.title, scheduleSave)
@@ -289,7 +299,7 @@ const handleImageSelected = async (fileList) => {
     const files = Array.from(fileList)
     imageError.value = ''
 
-    const remainingSlots = MAX_IMAGES - form.images.length
+    const remainingSlots = MAX_IMAGES - images.value.length
 
     if (files.length > remainingSlots) {
         imageError.value = remainingSlots > 0
@@ -319,12 +329,7 @@ const handleImageSelected = async (fileList) => {
         const file = filesToProcess[i]
         if (result.status === 'fulfilled') {
             const uploaded = result.value
-            form.images.push({
-                id: uploaded.id,
-                name: uploaded.file_name,
-                url: uploaded.url,
-                isDeleting: false,
-            })
+            addImage(uploaded.id, file)
         } else {
             failedNames.push(file.name)
         }
@@ -336,16 +341,16 @@ const handleImageSelected = async (fileList) => {
 }
 
 const removeImage = async (id) => {
-    const image = form.images.find(img => img.id === id)
+    const image = images.value.find(img => img.id === id)
     if (!image || image.isDeleting) return
 
-    image.isDeleting = true
+    updateImage(id, { isDeleting: true })
 
     try {
         await deleteImage(noteId.value, id)
-        form.images = form.images.filter(img => img.id !== id)
+        removeImageItem(id)
     } catch (error) {
-        image.isDeleting = false
+        updateImage(id, { isDeleting: false })
         imageError.value = error?.data?.message || 'Gagal menghapus gambar.'
     }
 }

@@ -1,20 +1,4 @@
-interface NoteImage {
-  id: string
-  file_name: string
-  url: string
-  mime_type: string
-  created_at: string
-}
-
-interface ListResponse<T> {
-  message: string
-  data: T
-}
-
-interface SingleResponse<T> {
-  message: string
-  data: T
-}
+import type { ApiResponse, NoteImage } from '~/types/api'
 
 export const MAX_IMAGES = 3
 export const MAX_IMAGE_SIZE = 2 * 1024 * 1024
@@ -24,7 +8,7 @@ export const useNoteImages = () => {
   const api = useApi()
 
   const fetchImages = async (noteId: string) => {
-    const response = await api<ListResponse<NoteImage[]>>(`/notes/${noteId}/images`)
+    const response = await api<ApiResponse<NoteImage[]>>(`/notes/${noteId}/images`)
     return response.data
   }
 
@@ -32,7 +16,7 @@ export const useNoteImages = () => {
     const formData = new FormData()
     formData.append('image', file)
 
-    const response = await api<SingleResponse<NoteImage>>(`/notes/${noteId}/images`, {
+    const response = await api<ApiResponse<NoteImage>>(`/notes/${noteId}/images`, {
       method: 'POST',
       body: formData,
     })
@@ -43,15 +27,14 @@ export const useNoteImages = () => {
     await api(`/notes/${noteId}/images/${imageId}`, { method: 'DELETE' })
   }
 
-  const fetchImageBlobUrl = async (url: string) => {
-    const blob = await api<Blob>(url, { responseType: 'blob', cache: 'no-store' })
-    return URL.createObjectURL(blob)
+  const fetchImageBlob = async (url: string) => {
+    return await api<Blob>(url, { responseType: 'blob', cache: 'no-store' })
   }
 
   return {
     fetchImages,
     uploadImage,
     deleteImage,
-    fetchImageBlobUrl,
+    fetchImageBlob,
   }
 }

@@ -13,20 +13,11 @@
         <div class="sidebar__content">
             <nav class="sidebar__nav">
                 <NuxtLink to="/dashboard" class="sidebar__nav-item" active-class="sidebar__nav-item--active">
-                    <svg class="sidebar__icon" viewBox="0 0 20 20" fill="none">
-                        <rect x="2.5" y="2.5" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
-                        <rect x="11.5" y="2.5" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
-                        <rect x="2.5" y="11.5" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
-                        <rect x="11.5" y="11.5" width="6" height="6" rx="1.5" stroke="currentColor"
-                            stroke-width="1.5" />
-                    </svg>
+                    <LayoutGrid class="sidebar__icon" :size="18" />
                     Dashboard
                 </NuxtLink>
                 <NuxtLink to="/notes" class="sidebar__nav-item" active-class="sidebar__nav-item--active">
-                    <svg class="sidebar__icon" viewBox="0 0 20 20" fill="none">
-                        <path d="M4 5.5h12M4 10h12M4 14.5h8" stroke="currentColor" stroke-width="1.5"
-                            stroke-linecap="round" />
-                    </svg>
+                    <List class="sidebar__icon" :size="18" />
                     Semua Catatan
                     <span class="sidebar__nav-count">
                         {{ totalNotes }}
@@ -43,23 +34,11 @@
                     </p>
                     <div class="sidebar__section-actions">
                         <button class="sidebar__folder-add" type="button" title="Folder baru..." @click="addFolder">
-                            <svg viewBox="0 0 20 20" fill="none">
-                                <path
-                                    d="M2.5 5.5C2.5 4.67157 3.17157 4 4 4H7.17157C7.5694 4 7.9509 4.15804 8.23223 4.43934L9.29289 5.5H16C16.8284 5.5 17.5 6.17157 17.5 7V14.5C17.5 15.3284 16.8284 16 16 16H4C3.17157 16 2.5 15.3284 2.5 14.5V5.5Z"
-                                    stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-                                <path d="M10 8.5V13M7.5 10.75H12.5" stroke="currentColor" stroke-width="1.5"
-                                    stroke-linecap="round" />
-                            </svg>
+                            <FolderPlus :size="18" />
                         </button>
                         <button class="sidebar__folder-add sidebar__folder-add--sm" type="button"
                             title="Catatan baru..." @click="startAddUnfiledNote">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <path d="M14 2v6h6" />
-                                <path d="M12 18v-6" />
-                                <path d="M9 15h6" />
-                            </svg>
+                            <FilePlus :size="16" />
                         </button>
                     </div>
                 </div>
@@ -73,11 +52,7 @@
                             @dragover.prevent="handleFolderDragOver(folder.id)"
                             @dragleave="handleFolderDragLeave(folder.id)" @drop.prevent="handleFolderDrop(folder.id)">
                             <button class="sidebar__folder" @click="toggleFolder(folder.id)">
-                                <svg class="sidebar__folder-icon" viewBox="0 0 24 24" fill="none">
-                                    <path
-                                        d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"
-                                        stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                                </svg>
+                                <Folder class="sidebar__folder-icon" :size="18" />
 
                                 <template v-if="folder.isNew || folder.isRenaming">
                                     <input :ref="(el) => setFolderInputRef(el, folder.id)"
@@ -97,11 +72,7 @@
                                 class="sidebar__folder-menu">
                                 <button class="sidebar__folder-menu-trigger" type="button" aria-label="Opsi folder"
                                     @click.stop="toggleFolderMenu(folder.id)">
-                                    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                                        <circle cx="10" cy="4" r="1.6" />
-                                        <circle cx="10" cy="10" r="1.6" />
-                                        <circle cx="10" cy="16" r="1.6" />
-                                    </svg>
+                                    <MoreVertical :size="16" />
                                 </button>
 
                                 <Transition name="fade">
@@ -138,23 +109,13 @@
                                     @dragend="handleNoteDragEnd">
                                     <NuxtLink :to="`/notes/update?id=${note.id}`" class="sidebar__note"
                                         :class="{ 'sidebar__note--active': activeNoteId === note.id }">
-                                        <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
-                                            <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                                                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                                            <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
-                                                stroke-linejoin="round" />
-                                        </svg>
+                                        <FileText class="sidebar__note-icon" :size="16" />
                                         <span>{{ note.title }}</span>
                                     </NuxtLink>
                                 </li>
                                 <li v-if="creatingNoteFolderId === folder.id" class="sidebar__note-item">
                                     <div class="sidebar__note sidebar__note--input">
-                                        <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
-                                            <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                                                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                                            <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"
-                                                stroke-linejoin="round" />
-                                        </svg>
+                                        <FileText class="sidebar__note-icon" :size="16" />
                                         <input :ref="(el) => setNoteInputRef(el, folder.id)" v-model="noteInputValue" class="sidebar__note-input"
                                             placeholder="Judul catatan..." @click.stop
                                             @keyup.enter="confirmNoteInput(folder.id)" @keyup.esc="cancelNoteInput"
@@ -171,22 +132,14 @@
                         @dragstart="handleNoteDragStart(note, null, $event)" @dragend="handleNoteDragEnd">
                         <NuxtLink :to="`/notes/update?id=${note.id}`" class="sidebar__note sidebar__note--flat"
                             :class="{ 'sidebar__note--active': activeNoteId === note.id }">
-                            <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
-                                <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                                    stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                                <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                            </svg>
+                            <FileText class="sidebar__note-icon" :size="16" />
                             <span>{{ note.title }}</span>
                         </NuxtLink>
                     </li>
 
                     <li v-if="isAddingUnfiledNote" class="sidebar__note-item sidebar__note-item--flat">
                         <div class="sidebar__note sidebar__note--flat sidebar__note--input">
-                            <svg class="sidebar__note-icon" viewBox="0 0 24 24" fill="none">
-                                <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                                    stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                                <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                            </svg>
+                            <FileText class="sidebar__note-icon" :size="16" />
                             <input ref="unfiledNoteInputRef" v-model="noteInputValue" class="sidebar__note-input"
                                 placeholder="Judul catatan..." @click.stop @keyup.enter="confirmUnfiledNoteInput"
                                 @keyup.esc="cancelNoteInput" @blur="confirmUnfiledNoteInput">
@@ -239,6 +192,7 @@
     </aside>
 </template>
 <script setup>
+import { LayoutGrid, List, FolderPlus, FilePlus, Folder, MoreVertical, FileText } from 'lucide-vue-next'
 
 const emit = defineEmits(['note-moved'])
 
@@ -312,7 +266,8 @@ onMounted(async () => {
 const openedFolders = ref([])
 const openedMenuId = ref(null)
 const isUserMenuOpen = ref(false)
-const photoSrc = ref(null)
+
+const { src: photoSrc, loadFrom: loadPhoto, revoke: revokePhoto } = useBlobImage()
 
 const userMenuRef = ref(null)
 const noteInputRefs = new Map()
@@ -385,28 +340,24 @@ const closeFolderMenu = () => {
 
 onClickOutside(userMenuRef, closeUserMenu)
 onClickOutside(() => folderMenuRefs.get(openedMenuId.value), closeFolderMenu)
-onBeforeUnmount(() => {
-    if (photoSrc.value) URL.revokeObjectURL(photoSrc.value)
-})
 
 watch(user, async (newUser) => {
-    if (photoSrc.value) {
-        URL.revokeObjectURL(photoSrc.value)
-        photoSrc.value = null
+    if (!newUser?.photo) {
+        revokePhoto()
+        return
     }
 
-    if (newUser?.photo) {
-        try {
-            photoSrc.value = await fetchPhotoBlobUrl(newUser.photo)
-        } catch (error) {
-            photoSrc.value = null
-        }
+    try {
+        await loadPhoto(() => fetchPhotoBlobUrl(newUser.photo))
+    } catch (error) {
+        revokePhoto()
     }
 }, { immediate: true })
+
 const addFolder = () => {
     if (isCreatingFolder.value) return
 
-    tempFolderId.value = Date.now()
+    tempFolderId.value = useTempId()
     folderInputValue.value = ''
 
     localFolders.value.push({
@@ -477,7 +428,7 @@ const confirmFolderInput = async () => {
             })
             sortFoldersByName()
             notifyFoldersChanged()
-            toast.success()
+            toast.created()
         } catch (error) {
             localFolders.value.splice(index, 1)
             toast.error(error?.data?.errors?.name?.[0] || error?.data?.message || 'Gagal membuat folder.')
@@ -499,7 +450,7 @@ const confirmFolderInput = async () => {
                     folder.name = updated.name
                     sortFoldersByName()
                     notifyFoldersChanged()
-                    toast.info()
+                    toast.updated()
                 } catch (error) {
                     toast.error(error?.data?.errors?.name?.[0] || error?.data?.message || 'Gagal mengubah nama folder.')
                 }
@@ -527,7 +478,7 @@ const deleteFolder = async (id) => {
         const openedIndex = openedFolders.value.indexOf(id)
         if (openedIndex > -1) openedFolders.value.splice(openedIndex, 1)
         notifyFoldersChanged()
-        toast.error()
+        toast.deleted()
     } catch (error) {
         toast.error(error?.data?.message || 'Gagal menghapus folder.')
     }
