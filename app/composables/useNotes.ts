@@ -8,12 +8,14 @@ interface NotePayload {
 
 export const useNotesSync = () => {
   const version = useState('notes-sync-version', () => 0)
+  const lastEvent = useState('notes-sync-event', () => null)
 
-  const notifyNotesChanged = () => {
+  const notifyNotesChanged = (event = null) => {
+    lastEvent.value = event
     version.value++
   }
 
-  return { version, notifyNotesChanged }
+  return { version, lastEvent, notifyNotesChanged }
 }
 
 export const useNotes = () => {

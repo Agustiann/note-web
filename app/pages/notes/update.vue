@@ -30,7 +30,7 @@
 
             <div class="update-note__section">
                 <textarea id="note-content" v-model="form.content" class="update-note__textarea" rows="6"
-                    placeholder="Tulis catatan di sini..." />
+                    placeholder="Tulis catatan di sini..." @blur="handleContentBlur" />
             </div>
 
             <NoteChecklistSection ref="checklistSectionRef" :items="form.checklist"
@@ -64,7 +64,7 @@ const { version: foldersSyncVersion } = useFoldersSync()
 const { fetchNote, updateNote, deleteNote } = useNotes()
 const { uploadImage, deleteImage, fetchImageBlob } = useNoteImages()
 const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNoteChecklists()
-const { version: notesSyncVersion, notifyNotesChanged } = useNotesSync()
+const { version: notesSyncVersion, lastEvent: notesLastEvent, notifyNotesChanged } = useNotesSync()
 
 const checklistSectionRef = ref(null)
 
@@ -82,6 +82,8 @@ const imageError = ref('')
 const checklistError = ref('')
 const lastUpdated = ref(new Date())
 const lastSavedTitle = ref('')
+const lastSavedContent = ref('')
+const lastSavedFolderId = ref(null)
 
 const {
     data: pageData,
@@ -149,6 +151,8 @@ watch(pageData, (value) => {
     loadNoteImages(note.images)
     lastUpdated.value = new Date(note.updated_at)
     lastSavedTitle.value = note.title
+    lastSavedContent.value = note.content ?? ''
+    lastSavedFolderId.value = note.folder_id ?? null
 
     folders.value = note.folder ? [note.folder] : []
     foldersLoaded.value = false
@@ -158,10 +162,6 @@ watch(pageData, (value) => {
     })
 }, { immediate: true })
 
-onBeforeUnmount(() => {
-    clearTimeout(saveTimer)
-})
-
 watch(foldersSyncVersion, refreshNote)
 
 let skipNextNotesSync = false
@@ -170,6 +170,14 @@ watch(notesSyncVersion, () => {
         skipNextNotesSync = false
         return
     }
+
+    const event = notesLastEvent.value
+    const affectsThisNote = !event
+        || (event.type === 'delete' && event.noteId === noteId.value)
+        || event.note?.id === noteId.value
+
+    if (!affectsThisNote) return
+
     refreshNote()
 })
 
@@ -186,13 +194,32 @@ const saveStatusLabel = computed(() => {
     return `Tersimpan · ${lastUpdatedLabel.value}`
 })
 
-let saveTimer = null
+const isDirty = computed(() => {
+    if (isLoading.value) return false
+    const title = form.title.trim()
+    const content = form.content?.trim() || ''
+    return title !== lastSavedTitle.value
+        || content !== lastSavedContent.value
+        || (form.folderId ?? null) !== lastSavedFolderId.value
+})
 
-const performSave = async () => {
+let inFlightSave = null
+
+const performSave = () => {
+    if (inFlightSave) return inFlightSave
+    inFlightSave = executeSave().finally(() => {
+        inFlightSave = null
+    })
+    return inFlightSave
+}
+
+const executeSave = async () => {
     if (!form.title.trim()) {
         saveError.value = 'Judul catatan tidak boleh kosong'
-        return
+        return false
     }
+
+    if (!isDirty.value) return true
 
     saveError.value = ''
     isSaving.value = true
@@ -205,41 +232,56 @@ const performSave = async () => {
         })
         lastUpdated.value = new Date(updated.updated_at)
         lastSavedTitle.value = updated.title
+        lastSavedContent.value = updated.content ?? ''
+        lastSavedFolderId.value = updated.folder_id ?? null
         skipNextNotesSync = true
-        notifyNotesChanged()
+        notifyNotesChanged({ type: 'update', note: updated })
+        return true
     } catch (error) {
         saveError.value = error?.data?.errors?.title?.[0]
             || error?.data?.message
             || 'Gagal menyimpan perubahan, coba lagi'
+        return false
     } finally {
         isSaving.value = false
     }
 }
 
-const scheduleSave = () => {
-    if (isLoading.value) return
-    if (isHydratingForm) return
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(performSave, 800)
-    // performSave()
-}
-
-watch(() => form.title, scheduleSave)
-watch(() => form.content, scheduleSave)
-
 watch(() => form.folderId, () => {
     if (isLoading.value) return
     if (isHydratingForm) return
-    clearTimeout(saveTimer)
     performSave()
 })
 
 const handleTitleBlur = () => {
-    if (form.title.trim()) return
-    clearTimeout(saveTimer)
-    form.title = lastSavedTitle.value
-    saveError.value = ''
+    if (!form.title.trim()) {
+        form.title = lastSavedTitle.value
+        saveError.value = ''
+        return
+    }
+    performSave()
 }
+
+const handleContentBlur = () => {
+    performSave()
+}
+
+onBeforeRouteLeave(async (to, from, next) => {
+    if (!isDirty.value) {
+        next()
+        return
+    }
+    await performSave()
+    next()
+})
+
+const handleBeforeUnload = (event) => {
+    if (!isDirty.value) return
+    event.preventDefault()
+}
+
+onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnload))
 
 const handleChecklistEnter = (item) => {
     if (!item.content.trim()) return
@@ -381,7 +423,7 @@ const handleDelete = async () => {
 
     try {
         await deleteNote(noteId.value)
-        notifyNotesChanged()
+        notifyNotesChanged({ type: 'delete', noteId: noteId.value })
         toast.success('Catatan berhasil dihapus')
         router.push('/notes')
     } catch (error) {

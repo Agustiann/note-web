@@ -203,7 +203,7 @@ const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
 const { notifyFoldersChanged } = useFoldersSync()
 const { fetchNotes, moveNote, createNote } = useNotes()
-const { version: notesSyncVersion, notifyNotesChanged } = useNotesSync()
+const { version: notesSyncVersion, lastEvent: notesLastEvent, notifyNotesChanged } = useNotesSync()
 
 const toast = useAppToast()
 
@@ -254,7 +254,60 @@ watch(sidebarData, (value) => {
     unfiledNotes.value = value?.unfiled ?? []
 }, { immediate: true })
 
+const byTitle = (a, b) => a.title.localeCompare(b.title, 'id', { sensitivity: 'base' })
+
+const findNoteLocation = (noteId) => {
+    for (const folder of localFolders.value) {
+        const idx = folder.notes.findIndex(n => n.id === noteId)
+        if (idx !== -1) return folder.notes
+    }
+    const idx = unfiledNotes.value.findIndex(n => n.id === noteId)
+    if (idx !== -1) return unfiledNotes.value
+    return null
+}
+
+const removeNoteLocally = (noteId) => {
+    const list = findNoteLocation(noteId)
+    if (!list) return
+    const idx = list.findIndex(n => n.id === noteId)
+    if (idx !== -1) list.splice(idx, 1)
+}
+
+const insertNoteSorted = (list, note) => {
+    const idx = list.findIndex(n => byTitle(n, note) > 0)
+    if (idx === -1) list.push(note)
+    else list.splice(idx, 0, note)
+}
+
+const upsertNoteLocally = (note) => {
+    removeNoteLocally(note.id)
+
+    if (note.folder_id === null || note.folder_id === undefined) {
+        insertNoteSorted(unfiledNotes.value, note)
+        return
+    }
+
+    const folder = localFolders.value.find(f => f.id === note.folder_id)
+    if (!folder) {
+        refreshSidebarData()
+        return
+    }
+    insertNoteSorted(folder.notes, note)
+}
+
 watch(notesSyncVersion, () => {
+    const event = notesLastEvent.value
+
+    if (event?.type === 'update' || event?.type === 'create') {
+        upsertNoteLocally(event.note)
+        return
+    }
+
+    if (event?.type === 'delete') {
+        removeNoteLocally(event.noteId)
+        return
+    }
+
     refreshSidebarData()
 })
 onMounted(async () => {
@@ -510,8 +563,8 @@ const confirmNoteInput = async (folderId) => {
         return
     }
     try {
-        await createNote({ title, folder_id: folderId })
-        notifyNotesChanged()
+        const note = await createNote({ title, folder_id: folderId })
+        notifyNotesChanged({ type: 'create', note })
     } catch (error) {
         toast.error(error?.data?.errors?.title?.[0] || error?.data?.message || 'Gagal membuat catatan.')
     } finally {
@@ -536,8 +589,8 @@ const confirmUnfiledNoteInput = async () => {
         return
     }
     try {
-        await createNote({ title, folder_id: null })
-        notifyNotesChanged()
+        const note = await createNote({ title, folder_id: null })
+        notifyNotesChanged({ type: 'create', note })
     } catch (error) {
         toast.error(error?.data?.errors?.title?.[0] || error?.data?.message || 'Gagal membuat catatan.')
     } finally {
@@ -624,9 +677,9 @@ const handleFolderDrop = async (targetFolderId) => {
     putNoteBack(movedNote, targetFolderId)
 
     try {
-        await moveNote(noteId, targetFolderId)
+        const movedResult = await moveNote(noteId, targetFolderId)
         emit('note-moved', { noteId, fromFolderId: sourceFolderId, toFolderId: targetFolderId })
-        notifyNotesChanged()
+        notifyNotesChanged({ type: 'update', note: movedResult })
     } catch (error) {
         const target = getFolderNotesRef(targetFolderId)
         const revertIndex = target?.findIndex(n => n.id === noteId) ?? -1

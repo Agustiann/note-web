@@ -158,7 +158,7 @@ const performSave = async () => {
             .map((result, i) => (result.status === 'rejected' ? validChecklist[i]?.content.trim() : null))
             .filter(Boolean)
 
-        notifyNotesChanged()
+        notifyNotesChanged({ type: 'create', note })
 
         if (failedUploads.length || failedChecklists.length) {
             const parts = []
