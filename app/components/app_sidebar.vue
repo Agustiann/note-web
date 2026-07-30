@@ -316,10 +316,11 @@ watch(foldersSyncVersion, () => {
     if (event?.type === 'note') handleNoteEvent(event)
 })
 
-onMounted(async () => {
+await useAsyncData('sidebar-user', async () => {
     if (!user.value) {
         await fetchUser()
     }
+    return true
 })
 
 const openedFolders = ref([])

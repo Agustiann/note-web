@@ -33,6 +33,7 @@
                 </button>
             </div>
             <span class="error-text" :class="{ 'is-visible': errors.password }">{{ errors.password }}</span>
+            <PasswordStrengthMeter :password="password" />
         </div>
 
         <div class="form-group" :class="{ error: errors.confirmPassword }">

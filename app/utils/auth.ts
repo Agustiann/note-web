@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+export const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/
+export const passwordRegexMessage = 'Password minimal 8 karakter dan harus mengandung huruf besar, huruf kecil, angka, serta simbol.'
+
 export const loginSchema = z.object({
     email: z
         .string({ required_error: 'Kolom ini harus diisi!' })
@@ -24,7 +27,8 @@ export const registerSchema = z
             .email('Format email tidak valid.'),
         password: z
             .string({ required_error: 'Kolom ini harus diisi!' })
-            .min(1, 'Kolom ini harus diisi!'),
+            .min(1, 'Kolom ini harus diisi!')
+            .regex(passwordRegex, passwordRegexMessage),
         confirmPassword: z
             .string({ required_error: 'Kolom ini harus diisi!' })
             .min(1, 'Kolom ini harus diisi!'),
@@ -45,8 +49,8 @@ export const updateProfileSchema = z
             .string()
             .trim()
             .optional()
-            .refine((value) => !value || value.length >= 6, {
-                message: 'Password minimal 6 karakter.',
+            .refine((value) => !value || passwordRegex.test(value), {
+                message: passwordRegexMessage,
             }),
         confirmPassword: z.string().trim().optional(),
     })
