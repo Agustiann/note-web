@@ -1,9 +1,13 @@
 <template>
   <div class="shell">
-    <button type="button" class="shell__menu-toggle" :class="{ 'shell__menu-toggle--open': isSidebarOpen }"
-      :aria-expanded="isSidebarOpen" aria-label="Buka atau tutup menu" @click="toggleSidebar">
-      <Menu v-if="!isSidebarOpen" :size="20" />
-      <X v-else :size="20" />
+    <button
+      v-if="!isSidebarOpen"
+      type="button"
+      class="shell__menu-toggle"
+      aria-label="Buka menu"
+      @click="openSidebar"
+    >
+      <Menu :size="20" />
     </button>
 
     <Transition name="overlay-fade">
@@ -19,9 +23,9 @@
 </template>
 
 <script setup>
-import { Menu, X } from 'lucide-vue-next'
+import { Menu } from 'lucide-vue-next'
 
-const { isOpen: isSidebarOpen, close: closeSidebar, toggle: toggleSidebar } = useSidebarUi()
+const { isOpen: isSidebarOpen, open: openSidebar, close: closeSidebar } = useSidebarUi()
 
 const route = useRoute()
 watch(() => route.fullPath, () => closeSidebar())

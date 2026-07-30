@@ -193,8 +193,6 @@ watch(notesSyncVersion, () => {
     refreshNote()
 })
 
-useHead({ title: computed(() => form.title ? `${form.title} · Notes` : 'Catatan') })
-
 const lastUpdatedLabel = useFormattedDate(
     lastUpdated,
     'D MMM YYYY, HH:mm'

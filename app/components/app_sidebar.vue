@@ -1,5 +1,9 @@
 <template>
     <aside class="sidebar" :class="{ 'sidebar--open': isSidebarOpen }">
+        <button type="button" class="sidebar__close" aria-label="Tutup menu" @click="closeSidebar">
+            <X :size="18" />
+        </button>
+
         <div class="sidebar__brand">
             <div class="sidebar__logo">
                 <img src="/assets/images/logo.png" alt="Notes">
@@ -192,14 +196,14 @@
     </aside>
 </template>
 <script setup>
-import { LayoutGrid, List, FolderPlus, FilePlus, Folder, MoreVertical, FileText } from 'lucide-vue-next'
+import { LayoutGrid, List, FolderPlus, FilePlus, Folder, MoreVertical, FileText, X } from 'lucide-vue-next'
 
 const emit = defineEmits(['note-moved'])
 
 const route = useRoute()
 const activeNoteId = computed(() => route.params.id ?? null)
 
-const { isOpen: isSidebarOpen } = useSidebarUi()
+const { isOpen: isSidebarOpen, close: closeSidebar } = useSidebarUi()
 const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
 const { version: foldersSyncVersion, lastEvent: foldersLastEvent, notifyFoldersChanged } = useFoldersSync()
