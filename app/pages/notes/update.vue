@@ -284,19 +284,7 @@ const handleContentBlur = () => {
     performSave()
 }
 
-onBeforeRouteLeave(async () => {
-    if (!isDirty.value) return true
-    await performSave()
-    return true
-})
-
-const handleBeforeUnload = (event) => {
-    if (!isDirty.value) return
-    event.preventDefault()
-}
-
-onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
-onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnload))
+useUnsavedChangesGuard(() => isDirty.value, performSave, { confirmOnLeave: false })
 
 const handleChecklistEnter = (item) => {
     if (!item.content.trim()) return

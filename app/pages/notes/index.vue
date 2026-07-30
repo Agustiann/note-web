@@ -51,7 +51,7 @@ const {
   pending: isLoading,
   error: loadErrorRaw,
   refresh: refreshNotes,
-} = await useAsyncData('dashboard-notes', () => fetchNotes())
+} = await useAsyncData('all-notes', () => fetchNotes())
 
 const notes = computed(() => notesResponse.value?.data?.notes ?? [])
 const totalAllNotes = computed(() => notesResponse.value?.data?.total_all_notes ?? 0)

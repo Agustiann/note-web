@@ -2,5 +2,6 @@
     <div />
 </template>
 <script setup>
-navigateTo('/auth/login')
+const token = useCookie('auth_token')
+await navigateTo(token.value ? '/dashboard' : '/auth/login')
 </script>

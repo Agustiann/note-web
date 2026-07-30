@@ -1,27 +1,27 @@
 import Swal from 'sweetalert2'
+import { useEventListener } from '@vueuse/core'
+
+interface UnsavedChangesGuardOptions {
+  confirmOnLeave?: boolean
+}
 
 export function useUnsavedChangesGuard(
   hasUnsavedChanges: () => boolean,
-  onSave: () => Promise<boolean>
+  onSave: () => Promise<boolean>,
+  options: UnsavedChangesGuardOptions = {}
 ) {
-  const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+  const { confirmOnLeave = true } = options
+
+  useEventListener('beforeunload', (event: BeforeUnloadEvent) => {
     if (!hasUnsavedChanges()) return
-
     event.preventDefault()
-  }
-
-  onMounted(() => {
-    window.addEventListener('beforeunload', handleBeforeUnload)
   })
 
-  onBeforeUnmount(() => {
-    window.removeEventListener('beforeunload', handleBeforeUnload)
-  })
+  onBeforeRouteLeave(async () => {
+    if (!hasUnsavedChanges()) return true
 
-  onBeforeRouteLeave(async (_to, _from, next) => {
-    if (!hasUnsavedChanges()) {
-      next()
-      return
+    if (!confirmOnLeave) {
+      return await onSave()
     }
 
     const result = await Swal.fire({
@@ -37,17 +37,8 @@ export function useUnsavedChangesGuard(
       denyButtonColor: '#d33',
     })
 
-    if (result.isConfirmed) {
-      const saved = await onSave()
-      next(saved)
-      return
-    }
-
-    if (result.isDenied) {
-      next()
-      return
-    }
-
-    next(false)
+    if (result.isConfirmed) return await onSave()
+    if (result.isDenied) return true
+    return false
   })
 }
