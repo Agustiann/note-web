@@ -125,6 +125,10 @@ ul {
         margin-bottom: 24px;
     }
 
+    &__brand-name {
+        flex: 1;
+    }
+
     &__logo img {
         width: 40px;
     }
@@ -899,17 +903,89 @@ ul {
     display: flex;
     min-height: 100vh;
     background: var(--color-bg);
+    position: relative;
 
     &__main {
         flex: 1;
         min-width: 0;
         padding: 32px 40px 60px;
     }
+
+    &__menu-toggle {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--color-surface);
+        color: var(--color-ink);
+        box-shadow: var(--shadow-card);
+        z-index: 300;
+        transition: background 0.15s ease, color 0.15s ease, left 0.25s ease;
+
+        &--open {
+            background: var(--color-sidebar);
+            color: var(--color-ink-invert);
+        }
+    }
+
+    &__overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 15, 30, 0.5);
+        z-index: 150;
+    }
+}
+
+.overlay-fade-enter-active,
+.overlay-fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.overlay-fade-enter-from,
+.overlay-fade-leave-to {
+    opacity: 0;
 }
 
 @media (max-width: 900px) {
     .shell {
+        --sidebar-mobile-width: min(280px, 82vw);
         flex-direction: column;
+
+        &__menu-toggle {
+            display: flex;
+        }
+
+        &__menu-toggle--open {
+            left: calc(var(--sidebar-mobile-width) + 12px);
+        }
+
+        &__overlay {
+            display: block;
+        }
+
+        &__main {
+            padding: 76px 20px 60px;
+        }
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 200;
+        width: var(--sidebar-mobile-width, min(280px, 82vw));
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+
+        &--open {
+            transform: translateX(0);
+        }
     }
 
     .profile {

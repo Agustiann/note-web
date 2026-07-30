@@ -1,5 +1,5 @@
 <template>
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ 'sidebar--open': isSidebarOpen }">
         <div class="sidebar__brand">
             <div class="sidebar__logo">
                 <img src="/assets/images/logo.png" alt="Notes">
@@ -199,6 +199,7 @@ const emit = defineEmits(['note-moved'])
 const route = useRoute()
 const activeNoteId = computed(() => route.params.id ?? null)
 
+const { isOpen: isSidebarOpen } = useSidebarUi()
 const { user, fetchUser, logout, fetchPhotoBlobUrl } = useAuth()
 const { fetchFolders, createFolder, updateFolder, deleteFolder: deleteFolderApi } = useFolders()
 const { version: foldersSyncVersion, lastEvent: foldersLastEvent, notifyFoldersChanged } = useFoldersSync()

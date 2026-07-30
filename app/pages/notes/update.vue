@@ -4,8 +4,8 @@
         <div class="update-note__header">
             <span class="update-note__last-updated">{{ saveStatusLabel }}</span>
             <div class="update-note__header-actions">
-                <button class="update-note__delete" type="button" @click="handleDelete">
-                    Hapus
+                <button class="update-note__delete" type="button" :disabled="isDeleting" @click="handleDelete">
+                    {{ isDeleting ? 'Menghapus...' : 'Hapus' }}
                 </button>
             </div>
         </div>
@@ -284,7 +284,9 @@ const handleContentBlur = () => {
     performSave()
 }
 
-useUnsavedChangesGuard(() => isDirty.value, performSave, { confirmOnLeave: false })
+let noteDeleted = false
+
+useUnsavedChangesGuard(() => !noteDeleted && isDirty.value, performSave, { confirmOnLeave: false })
 
 const handleChecklistEnter = (item) => {
     if (!item.content.trim()) return
@@ -420,18 +422,28 @@ const removeImage = async (id) => {
     }
 }
 
+const isDeleting = ref(false)
+
 const handleDelete = async () => {
+    if (isDeleting.value) return
+
     const confirmed = await useConfirmDelete('Catatan ini', 'Tindakan ini tidak bisa dibatalkan.')
     if (!confirmed) return
 
+    isDeleting.value = true
+
     try {
         await deleteNote(noteId.value)
+        noteDeleted = true
+        skipNextNotesSync = true
         notifyNotesChanged({ type: 'delete', noteId: noteId.value })
-        toast.success('Catatan berhasil dihapus')
-        router.push('/notes')
+        toast.deleted('Catatan berhasil dihapus')
+        await router.push('/notes')
     } catch (error) {
         saveError.value = error?.data?.message || 'Gagal menghapus catatan.'
         toast.error(saveError.value)
+    } finally {
+        isDeleting.value = false
     }
 }
 </script>
