@@ -1008,6 +1008,11 @@ ul {
 
         &__body {
             flex-direction: column-reverse;
+            align-items: stretch;
+        }
+
+        &__card {
+            width: 100%;
         }
 
         &__actions {
