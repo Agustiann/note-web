@@ -56,8 +56,6 @@ useHead({ title: 'Create · Notes' })
 const toast = useAppToast()
 const { fetchFolders } = useFolders()
 const { createNote } = useNotes()
-const { uploadImage } = useNoteImages()
-const { createChecklistItem } = useNoteChecklists()
 const { notifyNotesChanged } = useNotesSync()
 const { notifyFoldersChanged } = useFoldersSync()
 
@@ -138,26 +136,17 @@ const performSave = async () => {
     isSaving.value = true
 
     try {
+        const validChecklist = form.checklist
+            .filter(item => item.content.trim())
+            .map(item => ({ content: item.content.trim(), is_completed: item.isCompleted }))
+
         const note = await createNote({
             title: form.title.trim(),
             content: form.content?.trim() || null,
             folder_id: form.folderId,
+            images: noteImages.value.map(image => image.file),
+            checklists: validChecklist,
         })
-
-        const uploadResults = await Promise.allSettled(
-            noteImages.value.map(image => uploadImage(note.id, image.file))
-        )
-        const failedUploads = uploadResults
-            .map((result, i) => (result.status === 'rejected' ? noteImages.value[i]?.name : null))
-            .filter(Boolean)
-
-        const validChecklist = form.checklist.filter(item => item.content.trim())
-        const checklistResults = await Promise.allSettled(
-            validChecklist.map(item => createChecklistItem(note.id, item.content.trim(), item.isCompleted))
-        )
-        const failedChecklists = checklistResults
-            .map((result, i) => (result.status === 'rejected' ? validChecklist[i]?.content.trim() : null))
-            .filter(Boolean)
 
         if (note.folder_id) {
             notifyFoldersChanged({ type: 'note', note })
@@ -165,14 +154,7 @@ const performSave = async () => {
             notifyNotesChanged({ type: 'create', note })
         }
 
-        if (failedUploads.length || failedChecklists.length) {
-            const parts = []
-            if (failedUploads.length) parts.push(`gambar: ${failedUploads.join(', ')}`)
-            if (failedChecklists.length) parts.push(`checklist: ${failedChecklists.join(', ')}`)
-            toast.error(`Catatan tersimpan, tapi gagal menyimpan ${parts.join('; ')}`)
-        } else {
-            toast.created('Catatan berhasil disimpan')
-        }
+        toast.created('Catatan berhasil disimpan')
 
         return true
     } catch (error) {

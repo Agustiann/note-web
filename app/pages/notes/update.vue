@@ -7,6 +7,9 @@
                 <button class="update-note__delete" type="button" :disabled="isDeleting" @click="handleDelete">
                     {{ isDeleting ? 'Menghapus...' : 'Hapus' }}
                 </button>
+                <button class="update-note__save" type="button" :disabled="isSaving || !isDirty" @click="handleSave">
+                    {{ isSaving ? 'Menyimpan...' : 'Simpan Perubahan' }}
+                </button>
             </div>
         </div>
 
@@ -22,20 +25,20 @@
                 <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders" @open="loadFolders" />
             </div>
 
-            <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan..."
-                @blur="handleTitleBlur">
+            <input v-model="form.title" class="update-note__title-input" placeholder="Judul catatan...">
 
             <NoteImageSection :images="images" :max-images="MAX_IMAGES" :max-size-label="MAX_IMAGE_SIZE_LABEL"
-                :error="imageError" @select-files="handleImageSelected" @remove="removeImage" />
+                :error="imageError" extra-hint="Perubahan gambar disimpan saat kamu klik Simpan Perubahan."
+                @select-files="handleImageSelected" @remove="removeImage" />
 
             <div class="update-note__section">
                 <textarea id="note-content" v-model="form.content" class="update-note__textarea" rows="6"
-                    placeholder="Tulis catatan di sini..." @blur="handleContentBlur" />
+                    placeholder="Tulis catatan di sini..." />
             </div>
 
             <NoteChecklistSection ref="checklistSectionRef" :items="form.checklist"
-                hint="Checklist tersimpan otomatis saat kamu mengisi teksnya." :error="checklistError"
-                @enter="handleChecklistEnter" @blur="syncChecklistContent" @toggle="toggleChecklistItem"
+                hint="Checklist disimpan saat kamu klik Simpan Perubahan." :error="checklistError"
+                @enter="handleChecklistEnter" @blur="handleChecklistBlur" @toggle="toggleChecklistItem"
                 @remove="removeChecklistItem" />
 
             <div class="update-note__footer">
@@ -62,8 +65,7 @@ const toast = useAppToast()
 const { fetchFolders } = useFolders()
 const { version: foldersSyncVersion, lastEvent: foldersLastEvent, notifyFoldersChanged } = useFoldersSync()
 const { fetchNote, updateNote, deleteNote } = useNotes()
-const { uploadImage, deleteImage, fetchImageBlob } = useNoteImages()
-const { createChecklistItem, updateChecklistItem, deleteChecklistItem } = useNoteChecklists()
+const { fetchImageBlob } = useNoteImages()
 const { version: notesSyncVersion, lastEvent: notesLastEvent, notifyNotesChanged } = useNotesSync()
 
 
@@ -75,16 +77,15 @@ const form = reactive({
     content: '',
     checklist: [],
 })
-const { items: images, add: addImage, addFromBlob, update: updateImage, remove: removeImageItem, clear: clearImages } = useBlobImageList()
+const { items: images, add: addImage, addFromBlob, remove: removeImageItem, clear: clearImages } = useBlobImageList()
 
 const isSaving = ref(false)
 const saveError = ref('')
 const imageError = ref('')
 const checklistError = ref('')
 const lastUpdated = ref(new Date())
-const lastSavedTitle = ref('')
-const lastSavedContent = ref('')
-const lastSavedFolderId = ref(null)
+
+const lastSaved = ref({ title: '', content: '', folderId: null, checklist: [], imageIds: [] })
 
 const {
     data: pageData,
@@ -131,14 +132,7 @@ const loadNoteImages = async (noteImages) => {
     )
 }
 
-let isHydratingForm = false
-
-watch(pageData, (value) => {
-    const note = value?.note
-    if (!note) return
-
-    isHydratingForm = true
-
+const hydrateFromNote = (note) => {
     form.title = note.title
     form.folderId = note.folder_id
     form.content = note.content ?? ''
@@ -151,16 +145,23 @@ watch(pageData, (value) => {
     }))
     loadNoteImages(note.images)
     lastUpdated.value = new Date(note.updated_at)
-    lastSavedTitle.value = note.title
-    lastSavedContent.value = note.content ?? ''
-    lastSavedFolderId.value = note.folder_id ?? null
+
+    lastSaved.value = {
+        title: note.title,
+        content: note.content ?? '',
+        folderId: note.folder_id ?? null,
+        checklist: form.checklist.map(item => ({ id: item.id, content: item.content, isCompleted: item.isCompleted })),
+        imageIds: (note.images ?? []).map(image => image.id),
+    }
 
     folders.value = note.folder ? [note.folder] : []
     foldersLoaded.value = false
+}
 
-    nextTick(() => {
-        isHydratingForm = false
-    })
+watch(pageData, (value) => {
+    const note = value?.note
+    if (!note) return
+    hydrateFromNote(note)
 }, { immediate: true })
 
 let skipNextFoldersSync = false
@@ -169,6 +170,7 @@ watch(foldersSyncVersion, () => {
         skipNextFoldersSync = false
         return
     }
+    if (isDirty.value) return 
 
     const event = foldersLastEvent.value
     if (event?.type === 'note' && event.note?.id !== noteId.value) return
@@ -182,6 +184,7 @@ watch(notesSyncVersion, () => {
         skipNextNotesSync = false
         return
     }
+    if (isDirty.value) return
 
     const event = notesLastEvent.value
     const affectsThisNote = !event
@@ -201,27 +204,40 @@ const lastUpdatedLabel = useFormattedDate(
 const saveStatusLabel = computed(() => {
     if (isSaving.value) return 'Menyimpan...'
     if (saveError.value) return 'Gagal menyimpan'
+    if (isDirty.value) return 'Ada perubahan belum disimpan'
     return `Tersimpan · ${lastUpdatedLabel.value}`
 })
 
+const currentChecklistSnapshot = computed(() =>
+    form.checklist
+        .filter(item => item.content.trim())
+        .map(item => ({ id: isTempId(item.id) ? null : item.id, content: item.content.trim(), isCompleted: item.isCompleted }))
+)
+
+const currentImageIdsSnapshot = computed(() =>
+    images.value.filter(image => !image.file).map(image => image.id)
+)
+
 const isDirty = computed(() => {
     if (isLoading.value) return false
+
     const title = form.title.trim()
     const content = form.content?.trim() || ''
-    return title !== lastSavedTitle.value
-        || content !== lastSavedContent.value
-        || (form.folderId ?? null) !== lastSavedFolderId.value
+
+    if (title !== lastSaved.value.title) return true
+    if (content !== lastSaved.value.content) return true
+    if ((form.folderId ?? null) !== lastSaved.value.folderId) return true
+
+    if (images.value.some(image => !!image.file)) return true // ada gambar baru yang belum diupload
+    if (JSON.stringify(currentImageIdsSnapshot.value.sort()) !== JSON.stringify([...lastSaved.value.imageIds].sort())) return true
+
+    const checklistNow = currentChecklistSnapshot.value
+    const checklistBefore = lastSaved.value.checklist
+    if (checklistNow.length !== checklistBefore.length) return true
+    if (JSON.stringify(checklistNow) !== JSON.stringify(checklistBefore)) return true
+
+    return false
 })
-
-let inFlightSave = null
-
-const performSave = () => {
-    if (inFlightSave) return inFlightSave
-    inFlightSave = executeSave().finally(() => {
-        inFlightSave = null
-    })
-    return inFlightSave
-}
 
 const executeSave = async () => {
     if (!form.title.trim()) {
@@ -235,15 +251,28 @@ const executeSave = async () => {
     isSaving.value = true
 
     try {
+        const newFiles = images.value.filter(image => image.file).map(image => image.file)
+        const existingImageIds = images.value.filter(image => !image.file).map(image => image.id)
+
+        const checklists = form.checklist
+            .filter(item => item.content.trim())
+            .map(item => ({
+                id: isTempId(item.id) ? undefined : item.id,
+                content: item.content.trim(),
+                is_completed: item.isCompleted,
+            }))
+
         const updated = await updateNote(noteId.value, {
             title: form.title.trim(),
             content: form.content?.trim() || null,
             folder_id: form.folderId,
+            images: newFiles,
+            existingImageIds,
+            checklists,
         })
-        lastUpdated.value = new Date(updated.updated_at)
-        lastSavedTitle.value = updated.title
-        lastSavedContent.value = updated.content ?? ''
-        lastSavedFolderId.value = updated.folder_id ?? null
+
+        hydrateFromNote(updated)
+
         skipNextNotesSync = true
         skipNextFoldersSync = true
 
@@ -252,115 +281,55 @@ const executeSave = async () => {
         } else {
             notifyNotesChanged({ type: 'update', note: updated })
         }
+
+        toast.created('Perubahan berhasil disimpan')
+
         return true
     } catch (error) {
         saveError.value = error?.data?.errors?.title?.[0]
             || error?.data?.message
             || 'Gagal menyimpan perubahan, coba lagi'
+        toast.error(saveError.value)
         return false
     } finally {
         isSaving.value = false
     }
 }
 
-watch(() => form.folderId, () => {
-    if (isLoading.value) return
-    if (isHydratingForm) return
-    performSave()
-})
+let inFlightSave = null
 
-const handleTitleBlur = () => {
-    if (!form.title.trim()) {
-        form.title = lastSavedTitle.value
-        saveError.value = ''
-        return
-    }
-    performSave()
+const performSave = () => {
+    if (inFlightSave) return inFlightSave
+    inFlightSave = executeSave().finally(() => {
+        inFlightSave = null
+    })
+    return inFlightSave
 }
 
-const handleContentBlur = () => {
-    performSave()
-}
+const handleSave = () => performSave()
 
 let noteDeleted = false
 
-useUnsavedChangesGuard(() => !noteDeleted && isDirty.value, performSave, { confirmOnLeave: false })
+useUnsavedChangesGuard(() => !noteDeleted && isDirty.value, performSave)
 
 const handleChecklistEnter = (item) => {
     if (!item.content.trim()) return
-    syncChecklistContent(item)
     checklistSectionRef.value?.addItem()
 }
 
-const syncChecklistContent = async (item) => {
-    if (item.isSaving || item.isDeleting) return
-
-    const content = item.content.trim()
-
-    if (!content) {
-        await removeChecklistItem(item.id)
-        return
-    }
-
-    item.isSaving = true
-    checklistError.value = ''
-
-    try {
-        if (isTempId(item.id)) {
-            const created = await createChecklistItem(noteId.value, content, item.isCompleted)
-            item.id = created.id
-            item.content = created.content
-            item.isCompleted = created.is_completed
-        } else {
-            await updateChecklistItem(noteId.value, item.id, { content })
-        }
-    } catch (error) {
-        checklistError.value = error?.data?.errors?.content?.[0]
-            || error?.data?.message
-            || 'Gagal menyimpan checklist.'
-    } finally {
-        item.isSaving = false
+const handleChecklistBlur = (item) => {
+    if (!item.content.trim()) {
+        removeChecklistItem(item.id)
     }
 }
 
-const toggleChecklistItem = async (item) => {
-    if (isTempId(item.id)) return
+const toggleChecklistItem = (item) => {}
 
-    item.isSaving = true
-    checklistError.value = ''
-
-    try {
-        await updateChecklistItem(noteId.value, item.id, { is_completed: item.isCompleted })
-    } catch (error) {
-        item.isCompleted = !item.isCompleted
-        checklistError.value = error?.data?.message || 'Gagal memperbarui status checklist.'
-    } finally {
-        item.isSaving = false
-    }
+const removeChecklistItem = (id) => {
+    form.checklist = form.checklist.filter(item => item.id !== id)
 }
 
-const removeChecklistItem = async (id) => {
-    const item = form.checklist.find(i => i.id === id)
-    if (!item || item.isDeleting) return
-
-    if (isTempId(item.id)) {
-        form.checklist = form.checklist.filter(i => i.id !== id)
-        return
-    }
-
-    item.isDeleting = true
-    checklistError.value = ''
-
-    try {
-        await deleteChecklistItem(noteId.value, id)
-        form.checklist = form.checklist.filter(i => i.id !== id)
-    } catch (error) {
-        item.isDeleting = false
-        checklistError.value = error?.data?.message || 'Gagal menghapus checklist.'
-    }
-}
-
-const handleImageSelected = async (fileList) => {
+const handleImageSelected = (fileList) => {
     const files = Array.from(fileList)
     imageError.value = ''
 
@@ -384,40 +353,13 @@ const handleImageSelected = async (fileList) => {
         return true
     })
 
-    const results = await Promise.allSettled(
-        filesToProcess.map((file) => uploadImage(noteId.value, file))
-    )
-
-    const failedNames = []
-
-    results.forEach((result, i) => {
-        const file = filesToProcess[i]
-        if (result.status === 'fulfilled') {
-            const uploaded = result.value
-            addImage(uploaded.id, file)
-        } else {
-            failedNames.push(file.name)
-        }
-    })
-
-    if (failedNames.length) {
-        imageError.value = `Gagal mengunggah: ${failedNames.join(', ')}`
+    for (const file of filesToProcess) {
+        addImage(useTempId(), file)
     }
 }
 
-const removeImage = async (id) => {
-    const image = images.value.find(img => img.id === id)
-    if (!image || image.isDeleting) return
-
-    updateImage(id, { isDeleting: true })
-
-    try {
-        await deleteImage(noteId.value, id)
-        removeImageItem(id)
-    } catch (error) {
-        updateImage(id, { isDeleting: false })
-        imageError.value = error?.data?.message || 'Gagal menghapus gambar.'
-    }
+const removeImage = (id) => {
+    removeImageItem(id)
 }
 
 const isDeleting = ref(false)
