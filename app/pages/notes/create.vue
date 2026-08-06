@@ -13,7 +13,7 @@
 
         <div class="update-note__card">
             <div class="update-note__meta">
-                <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders ?? []" />
+                <NoteFolderSelect v-model:folder-id="form.folderId" :folders="folders ?? []" @open="handleFolderOpen" />
                 <span v-if="foldersError" class="update-note__error-inline">
                     Gagal memuat folder
                 </span>
@@ -59,7 +59,16 @@ const { createNote } = useNotes()
 const { notifyNotesChanged } = useNotesSync()
 const { notifyFoldersChanged } = useFoldersSync()
 
-const { data: folders, error: foldersError } = await useAsyncData('note-folders', () => fetchFolders())
+const { data: folders, error: foldersError, refresh: refreshFolders } = await useAsyncData('note-folders', () => fetchFolders(), { immediate: false })
+
+const foldersLoaded = ref(false)
+const handleFolderOpen = async () => {
+    if (foldersLoaded.value) return
+    await refreshFolders()
+    if (!foldersError.value) {
+        foldersLoaded.value = true
+    }
+}
 
 const checklistSectionRef = ref(null)
 
